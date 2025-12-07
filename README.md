@@ -1,5 +1,7 @@
 # Croupier Node.js SDK
 
+[![Nightly Build](https://github.com/cuihairu/croupier-sdk-js/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-js/actions/workflows/nightly.yml)
+
 TypeScript-first SDK for hosting Croupier game functions inside Node.js services.
 
 ## Features
