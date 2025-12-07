@@ -4,6 +4,8 @@
 
 TypeScript-first SDK for hosting Croupier game functions inside Node.js services.
 
+> 与 [Croupier 主仓库](https://github.com/cuihairu/croupier) 的控制面与 proto 完全同步，可作为其官方 Node.js 客户端。
+
 ## Features
 
 - 🛰️ **Real gRPC pipeline** – spins up a local FunctionService gRPC server and registers with your nearest agent.
