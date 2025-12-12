@@ -1,15 +1,16 @@
-name: Nightly Build
+name: Release
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,13 +32,9 @@ jobs:
           rm -rf artifacts
           mkdir -p artifacts
           pnpm pack --pack-destination artifacts
-          zip -r "artifacts/croupier-js-sdk-nightly-${GITHUB_RUN_ID}.zip" dist package.json README.md LICENSE
-      - name: Publish nightly release assets
+          zip -r "artifacts/croupier-js-sdk-${GITHUB_REF_NAME}.zip" dist package.json README.md LICENSE
+      - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly
-          target_commitish: ${{ github.sha }}
-          name: Nightly Build
-          prerelease: true
           files: artifacts/*
           fail_on_unmatched_files: true
