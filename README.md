@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://nodejs.org/">
-    <img src="https://img.shields.io/badge/Node.js-16+-339933.svg" alt="Node.js Version">
+    <img src="https://img.shields.io/badge/Node.js-20+-339933.svg" alt="Node.js Version">
   </a>
   <a href="https://www.typescriptlang.org/">
     <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg" alt="TypeScript">
@@ -88,13 +88,12 @@ Croupier Node.js SDK 是 [Croupier](https://github.com/cuihairu/croupier) 游戏
 
 ### 系统要求
 
-- **Node.js** ≥ 16
-- **pnpm** ≥ 8（或 npm/yarn，但提供 pnpm lockfile）
+- **Node.js** ≥ 20
+- **pnpm** ≥ 10（推荐使用 `package.json#packageManager` 指定版本）
 
 ### 安装
 
 ```bash
-cd sdks/js
 pnpm install
 pnpm run build
 ```
@@ -145,9 +144,9 @@ console.log('✅ inventory.add_item 已注册');
 ### 运行示例应用
 
 ```bash
-# 在 sdks/js 目录下
+# 在项目根目录下
 pnpm install
-pnpm ts-node examples/main.ts
+pnpm dev
 ```
 
 示例注册三个处理器（`player.ban`、`wallet.transfer`、`shop.buy`）并记录调用日志。默认连接到 `127.0.0.1:19090` 的 Agent。
