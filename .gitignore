@@ -35,3 +35,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Protobuf generated files
+*.pb.go
+*_pb2.py
+*.pb.h
+*.pb.cc
+*.pb.java
+*.pb.swift
+*.ts
+src/gen/
+generated/
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# Dependencies
+node_modules/
+
+# Keep buf configuration files
+!buf.gen.yaml
+!buf.yaml
