@@ -43,7 +43,6 @@ next-env.d.ts
 *.pb.cc
 *.pb.java
 *.pb.swift
-*.ts
 src/gen/
 generated/
 

@@ -2,13 +2,12 @@ import http2, { Http2SecureServer, Http2Server } from 'node:http2';
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { createPromiseClient, ConnectError, Code } from '@connectrpc/connect';
-import type { PromiseClient } from '@connectrpc/connect';
+import { createClient as createConnectClient, ConnectError, Code } from '@connectrpc/connect';
 import { connectNodeAdapter, createGrpcTransport } from '@connectrpc/connect-node';
-import { LocalControlService } from '../generated/croupier/agent/local/v1/local_connect.js';
-import { FunctionService } from '../generated/croupier/function/v1/function_connect.js';
-import { ControlService } from '../generated/croupier/control/v1/control_connect.js';
-import type { InvokeResponse, JobEvent, StartJobResponse } from '../generated/croupier/function/v1/function_pb.js';
+import { LocalControlService } from '../generated/croupier/agent/local/v1/local_pb';
+import { ControlService } from '../generated/croupier/control/v1/control_pb';
+import { FunctionService } from '../generated/croupier/function/v1/function_pb';
+import type { InvokeResponse, JobEvent, StartJobResponse } from '../generated/croupier/function/v1/function_pb';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -120,7 +119,7 @@ export class BasicClient implements CroupierClient {
 
   private localAddress = '';
 
-  private agentClient?: PromiseClient<typeof LocalControlService>;
+  private agentClient?: any;
 
   private transport?: ReturnType<typeof createGrpcTransport>;
 
@@ -237,9 +236,8 @@ export class BasicClient implements CroupierClient {
 
     this.transport = createGrpcTransport({
       baseUrl,
-      httpVersion: '2',
     });
-    this.agentClient = createPromiseClient(LocalControlService, this.transport);
+    this.agentClient = createConnectClient(LocalControlService, this.transport);
   }
 
   private async registerWithAgent(): Promise<void> {
@@ -251,13 +249,13 @@ export class BasicClient implements CroupierClient {
       version: desc.version,
     }));
 
-    const response = (await this.agentClient.registerLocal({
+    const response = await this.agentClient.registerLocal({
       serviceId: this.config.serviceId,
       version: this.config.serviceVersion,
       rpcAddr: this.localAddress,
       functions,
-    })) as { sessionId: string };
-    this.sessionId = response.sessionId;
+    });
+    this.sessionId = response.sessionId ?? '';
     this.startHeartbeat();
   }
 
@@ -271,9 +269,8 @@ export class BasicClient implements CroupierClient {
 
     const transport = createGrpcTransport({
       baseUrl: this.normalizeAddressWithScheme(this.config.controlAddr),
-      httpVersion: '2',
     });
-    const controlClient = createPromiseClient(ControlService, transport);
+    const controlClient = createConnectClient(ControlService, transport);
     await controlClient.registerCapabilities({
       provider: {
         id: this.config.serviceId,

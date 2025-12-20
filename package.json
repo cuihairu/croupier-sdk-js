@@ -45,12 +45,13 @@
     "start": "node dist/examples/main.js"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "2.10.1",
-    "@connectrpc/connect": "^1.2.0",
-    "@connectrpc/connect-node": "^1.2.0"
+    "@bufbuild/protobuf": "2.10.2",
+    "@connectrpc/connect": "^2.1.1",
+    "@connectrpc/connect-node": "^2.1.1"
   },
   "devDependencies": {
     "@bufbuild/protoc-gen-es": "^2.2.0",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.8.0",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^6.7.4",
