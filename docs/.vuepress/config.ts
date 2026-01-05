@@ -29,6 +29,10 @@ export default defineUserConfig({
           { text: 'Python', link: 'https://cuihairu.github.io/croupier-sdk-python/' },
         ],
       },
+      {
+        text: 'Croupier 主项目',
+        link: 'https://cuihairu.github.io/croupier/',
+      },
     ],
     sidebar: {
       '/': [
