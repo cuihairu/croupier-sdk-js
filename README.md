@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://nodejs.org/">
-    <img src="https://img.shields.io/badge/Node.js-20+-339933.svg" alt="Node.js Version">
+    <img src="https://img.shields.io/badge/Node.js-22+-339933.svg" alt="Node.js Version">
   </a>
   <a href="https://www.typescriptlang.org/">
     <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg" alt="TypeScript">
@@ -91,7 +91,7 @@ Croupier Node.js SDK 是 [Croupier](https://github.com/cuihairu/croupier) 游戏
 
 ### 系统要求
 
-- **Node.js** ≥ 20
+- **Node.js** ≥ 22
 - **pnpm** ≥ 10（推荐使用 `package.json#packageManager` 指定版本）
 
 ### 安装
