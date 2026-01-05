@@ -12,7 +12,7 @@ export default defineUserConfig({
     ['meta', { name: 'keywords', content: 'croupier,javascript,typescript,sdk' }],
     ['meta', { name: 'theme-color', content: '#f7df1e' }],
   ],
-  base: '/',
+  base: '/croupier-sdk-js/',
   bundler: viteBundler(),
   theme: defaultTheme({
     repo: 'cuihairu/croupier-sdk-js',
