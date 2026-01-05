@@ -37,7 +37,7 @@ export default defineUserConfig({
     sidebar: {
       '/': [
         '/README.md',
-        { text: '指南', children: ['/guide/README.md', '/guide/quick-start.md'] },
+        { text: '指南', children: ['/guide/README.md'] },
         { text: 'API', children: ['/api/README.md'] },
       ],
     },
