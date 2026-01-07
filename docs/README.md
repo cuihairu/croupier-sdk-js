@@ -2,6 +2,7 @@
 home: true
 title: Croupier JavaScript SDK
 titleTemplate: false
+heroImage: /logo.png
 heroText: Croupier JavaScript SDK
 tagline: JavaScript/TypeScript SDK for Croupier
 actions:
