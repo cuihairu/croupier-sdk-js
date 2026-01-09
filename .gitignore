@@ -54,6 +54,7 @@ build/
 # Dependencies
 node_modules/
 
-# Keep buf configuration files
-!buf.gen.yaml
-!buf.yaml
+# Buf configuration files (generated dynamically)
+proto/buf.yaml
+buf.gen.yaml
+buf.lock

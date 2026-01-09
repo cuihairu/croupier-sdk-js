@@ -1,6 +1,7 @@
+# yaml-language-server: $schema=https://buf.build/docs/configuration/v2/buf-gen-yaml
 version: v2
 plugins:
-  - remote: buf.build/bufbuild/es
+  - remote: buf.build/protocolbuffers/es
     out: src/gen
     opt:
       - target=ts
