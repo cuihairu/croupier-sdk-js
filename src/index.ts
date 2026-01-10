@@ -4,10 +4,10 @@ import { gzipSync } from 'node:zlib';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { createClient as createConnectClient, ConnectError, Code } from '@connectrpc/connect';
 import { connectNodeAdapter, createGrpcTransport } from '@connectrpc/connect-node';
-import { LocalControlService } from '../generated/croupier/agent/local/v1/local_pb';
-import { ServerControlService } from '../generated/croupier/server/v1/server_control_pb';
-import { InvokerService } from '../generated/croupier/sdk/v1/invoker_pb';
-import type { InvokeResponse, JobEvent, StartJobResponse } from '../generated/croupier/sdk/v1/invoker_pb';
+import { LocalControlService } from './gen/croupier/agent/local/v1/local_connect';
+import { ControlService } from './gen/croupier/control/v1/control_connect';
+import { FunctionService } from './gen/croupier/sdk/v1/invoker_connect';
+import type { InvokeResponse, JobEvent, StartJobResponse } from './gen/croupier/sdk/v1/invoker_pb';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -201,7 +201,7 @@ export class BasicClient implements CroupierClient {
     const [host, port] = this.parseAddress(this.config.localListen);
     const handler = connectNodeAdapter({
       routes: (router) => {
-        router.service(InvokerService, {
+        router.service(FunctionService, {
           invoke: async (req: any) =>
             this.handleInvoke(req.functionId, req.metadata ?? {}, req.payload ?? new Uint8Array()),
           startJob: async (req: any) =>
@@ -270,7 +270,7 @@ export class BasicClient implements CroupierClient {
     const transport = createGrpcTransport({
       baseUrl: this.normalizeAddressWithScheme(this.config.controlAddr),
     });
-    const controlClient = createConnectClient(ServerControlService, transport);
+    const controlClient = createConnectClient(ControlService, transport);
     await controlClient.registerCapabilities({
       provider: {
         id: this.config.serviceId,

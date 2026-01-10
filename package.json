@@ -50,6 +50,7 @@
     "@connectrpc/connect-node": "^2.1.1"
   },
   "devDependencies": {
+    "@bufbuild/protoc-gen-connect-es": "^0.13.0",
     "@bufbuild/protoc-gen-es": "^2.2.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.8.0",
