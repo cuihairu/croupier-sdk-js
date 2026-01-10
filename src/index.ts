@@ -6,7 +6,7 @@ import { createClient as createConnectClient, ConnectError, Code } from '@connec
 import { connectNodeAdapter, createGrpcTransport } from '@connectrpc/connect-node';
 import { LocalControlService } from './gen/croupier/agent/local/v1/local_connect';
 import { ControlService } from './gen/croupier/control/v1/control_connect';
-import { FunctionService } from './gen/croupier/sdk/v1/invoker_connect';
+import { InvokerService } from './gen/croupier/sdk/v1/invoker_connect';
 import type { InvokeResponse, JobEvent, StartJobResponse } from './gen/croupier/sdk/v1/invoker_pb';
 
 const encoder = new TextEncoder();
@@ -201,7 +201,7 @@ export class BasicClient implements CroupierClient {
     const [host, port] = this.parseAddress(this.config.localListen);
     const handler = connectNodeAdapter({
       routes: (router) => {
-        router.service(FunctionService, {
+        router.service(InvokerService, {
           invoke: async (req: any) =>
             this.handleInvoke(req.functionId, req.metadata ?? {}, req.payload ?? new Uint8Array()),
           startJob: async (req: any) =>
