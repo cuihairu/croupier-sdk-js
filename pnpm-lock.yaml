@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@bufbuild/protobuf':
-        specifier: 2.10.2
+        specifier: ^2.10.2
         version: 2.10.2
       '@connectrpc/connect':
         specifier: ^2.1.1
@@ -28,7 +28,7 @@ importers:
         specifier: ^0.13.0
         version: 0.13.0(@bufbuild/protoc-gen-es@2.10.2(@bufbuild/protobuf@2.10.2))
       '@bufbuild/protoc-gen-es':
-        specifier: ^2.2.0
+        specifier: ^2.10.2
         version: 2.10.2(@bufbuild/protobuf@2.10.2)
       '@types/jest':
         specifier: ^29.5.14
