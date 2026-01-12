@@ -36,15 +36,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Protobuf generated files
+# Protobuf generated files (other languages, not used in this SDK)
 *.pb.go
 *_pb2.py
 *.pb.h
 *.pb.cc
 *.pb.java
 *.pb.swift
-src/gen/
-generated/
+# Note: src/gen/ is NOT ignored - it contains TypeScript proto stubs synced by croupier-proto
 
 # Build outputs
 dist/
