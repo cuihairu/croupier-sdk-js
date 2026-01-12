@@ -6,15 +6,17 @@ import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegen
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { I18nText, Menu, PermissionSpec } from "../../common/v1/ui_pb.ts";
 import { file_croupier_common_v1_ui } from "../../common/v1/ui_pb.ts";
-import type { EmptySchema } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_empty } from "@bufbuild/protobuf/wkt";
+import type { ListProcessesResponseSchema, MetricsReport, SystemInfoSchema } from "../../ops/v1/ops_pb.ts";
+import { file_croupier_ops_v1_ops } from "../../ops/v1/ops_pb.ts";
+import type { EmptySchema, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_empty, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file croupier/server/v1/server_control.proto.
  */
 export const file_croupier_server_v1_server_control: GenFile = /*@__PURE__*/
-  fileDesc("Cidjcm91cGllci9zZXJ2ZXIvdjEvc2VydmVyX2NvbnRyb2wucHJvdG8SEmNyb3VwaWVyLnNlcnZlci52MSLXAgoSRnVuY3Rpb25EZXNjcmlwdG9yEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIY2F0ZWdvcnkYAyABKAkSDAoEcmlzaxgEIAEoCRIOCgZlbnRpdHkYBSABKAkSEQoJb3BlcmF0aW9uGAYgASgJEg8KB2VuYWJsZWQYByABKAgSMgoMZGlzcGxheV9uYW1lGBQgASgLMhwuY3JvdXBpZXIuY29tbW9uLnYxLkkxOG5UZXh0Ei0KB3N1bW1hcnkYFSABKAsyHC5jcm91cGllci5jb21tb24udjEuSTE4blRleHQSDAoEdGFncxgWIAMoCRImCgRtZW51GBcgASgLMhguY3JvdXBpZXIuY29tbW9uLnYxLk1lbnUSNwoLcGVybWlzc2lvbnMYGCABKAsyIi5jcm91cGllci5jb21tb24udjEuUGVybWlzc2lvblNwZWMibwoMQWdlbnRQcm9jZXNzEhIKCnNlcnZpY2VfaWQYASABKAkSDAoEYWRkchgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhYKDmxhc3Rfc2Vlbl91bml4GAQgASgDEhQKDGZ1bmN0aW9uX2lkcxgFIAMoCSLUAQoPUmVnaXN0ZXJSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSOQoJZnVuY3Rpb25zGAMgAygLMiYuY3JvdXBpZXIuc2VydmVyLnYxLkZ1bmN0aW9uRGVzY3JpcHRvchIQCghycGNfYWRkchgEIAEoCRIPCgdnYW1lX2lkGAUgASgJEgsKA2VudhgGIAEoCRIzCglwcm9jZXNzZXMYByADKAsyIC5jcm91cGllci5zZXJ2ZXIudjEuQWdlbnRQcm9jZXNzIjkKEFJlZ2lzdGVyUmVzcG9uc2USEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglleHBpcmVfYXQYAiABKAMiOAoQSGVhcnRiZWF0UmVxdWVzdBIQCghhZ2VudF9pZBgBIAEoCRISCgpzZXNzaW9uX2lkGAIgASgJIhMKEUhlYXJ0YmVhdFJlc3BvbnNlIkYKDFByb3ZpZGVyTWV0YRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgwKBGxhbmcYAyABKAkSCwoDc2RrGAQgASgJImsKG1JlZ2lzdGVyQ2FwYWJpbGl0aWVzUmVxdWVzdBIyCghwcm92aWRlchgBIAEoCzIgLmNyb3VwaWVyLnNlcnZlci52MS5Qcm92aWRlck1ldGESGAoQbWFuaWZlc3RfanNvbl9nehgCIAEoDCIeChxSZWdpc3RlckNhcGFiaWxpdGllc1Jlc3BvbnNlIlkKHExpc3RGdW5jdGlvbnNTdW1tYXJ5UmVzcG9uc2USOQoJZnVuY3Rpb25zGAEgAygLMiYuY3JvdXBpZXIuc2VydmVyLnYxLkZ1bmN0aW9uRGVzY3JpcHRvcjKeAwoOQ29udHJvbFNlcnZpY2USYAoUTGlzdEZ1bmN0aW9uc1N1bW1hcnkSFi5nb29nbGUucHJvdG9idWYuRW1wdHkaMC5jcm91cGllci5zZXJ2ZXIudjEuTGlzdEZ1bmN0aW9uc1N1bW1hcnlSZXNwb25zZRJVCghSZWdpc3RlchIjLmNyb3VwaWVyLnNlcnZlci52MS5SZWdpc3RlclJlcXVlc3QaJC5jcm91cGllci5zZXJ2ZXIudjEuUmVnaXN0ZXJSZXNwb25zZRJYCglIZWFydGJlYXQSJC5jcm91cGllci5zZXJ2ZXIudjEuSGVhcnRiZWF0UmVxdWVzdBolLmNyb3VwaWVyLnNlcnZlci52MS5IZWFydGJlYXRSZXNwb25zZRJ5ChRSZWdpc3RlckNhcGFiaWxpdGllcxIvLmNyb3VwaWVyLnNlcnZlci52MS5SZWdpc3RlckNhcGFiaWxpdGllc1JlcXVlc3QaMC5jcm91cGllci5zZXJ2ZXIudjEuUmVnaXN0ZXJDYXBhYmlsaXRpZXNSZXNwb25zZUJqCiVpby5naXRodWIuY3VpaGFpcnUuY3JvdXBpZXIuc2VydmVyLnYxUAFaP2dpdGh1Yi5jb20vY3VpaGFpcnUvY3JvdXBpZXIvcGtnL3BiL2Nyb3VwaWVyL3NlcnZlci92MTtzZXJ2ZXJ2MWIGcHJvdG8z", [file_croupier_common_v1_ui, file_google_protobuf_empty]);
+  fileDesc("Cidjcm91cGllci9zZXJ2ZXIvdjEvc2VydmVyX2NvbnRyb2wucHJvdG8SEmNyb3VwaWVyLnNlcnZlci52MSLXAgoSRnVuY3Rpb25EZXNjcmlwdG9yEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIY2F0ZWdvcnkYAyABKAkSDAoEcmlzaxgEIAEoCRIOCgZlbnRpdHkYBSABKAkSEQoJb3BlcmF0aW9uGAYgASgJEg8KB2VuYWJsZWQYByABKAgSMgoMZGlzcGxheV9uYW1lGBQgASgLMhwuY3JvdXBpZXIuY29tbW9uLnYxLkkxOG5UZXh0Ei0KB3N1bW1hcnkYFSABKAsyHC5jcm91cGllci5jb21tb24udjEuSTE4blRleHQSDAoEdGFncxgWIAMoCRImCgRtZW51GBcgASgLMhguY3JvdXBpZXIuY29tbW9uLnYxLk1lbnUSNwoLcGVybWlzc2lvbnMYGCABKAsyIi5jcm91cGllci5jb21tb24udjEuUGVybWlzc2lvblNwZWMibwoMQWdlbnRQcm9jZXNzEhIKCnNlcnZpY2VfaWQYASABKAkSDAoEYWRkchgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhYKDmxhc3Rfc2Vlbl91bml4GAQgASgDEhQKDGZ1bmN0aW9uX2lkcxgFIAMoCSLUAQoPUmVnaXN0ZXJSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSOQoJZnVuY3Rpb25zGAMgAygLMiYuY3JvdXBpZXIuc2VydmVyLnYxLkZ1bmN0aW9uRGVzY3JpcHRvchIQCghycGNfYWRkchgEIAEoCRIPCgdnYW1lX2lkGAUgASgJEgsKA2VudhgGIAEoCRIzCglwcm9jZXNzZXMYByADKAsyIC5jcm91cGllci5zZXJ2ZXIudjEuQWdlbnRQcm9jZXNzIjkKEFJlZ2lzdGVyUmVzcG9uc2USEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglleHBpcmVfYXQYAiABKAMiOAoQSGVhcnRiZWF0UmVxdWVzdBIQCghhZ2VudF9pZBgBIAEoCRISCgpzZXNzaW9uX2lkGAIgASgJIhMKEUhlYXJ0YmVhdFJlc3BvbnNlIkYKDFByb3ZpZGVyTWV0YRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgwKBGxhbmcYAyABKAkSCwoDc2RrGAQgASgJImsKG1JlZ2lzdGVyQ2FwYWJpbGl0aWVzUmVxdWVzdBIyCghwcm92aWRlchgBIAEoCzIgLmNyb3VwaWVyLnNlcnZlci52MS5Qcm92aWRlck1ldGESGAoQbWFuaWZlc3RfanNvbl9nehgCIAEoDCIeChxSZWdpc3RlckNhcGFiaWxpdGllc1Jlc3BvbnNlIlkKHExpc3RGdW5jdGlvbnNTdW1tYXJ5UmVzcG9uc2USOQoJZnVuY3Rpb25zGAEgAygLMiYuY3JvdXBpZXIuc2VydmVyLnYxLkZ1bmN0aW9uRGVzY3JpcHRvciItChlHZXRBZ2VudFN5c3RlbUluZm9SZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJIi0KGUxpc3RBZ2VudFByb2Nlc3Nlc1JlcXVlc3QSEAoIYWdlbnRfaWQYASABKAkiYgoTUXVlcnlNZXRyaWNzUmVxdWVzdBIRCglhZ2VudF9pZHMYASADKAkSKQoFc2luY2UYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxpbWl0GAMgASgNIk4KFFF1ZXJ5TWV0cmljc1Jlc3BvbnNlEjYKB2VudHJpZXMYASADKAsyJS5jcm91cGllci5zZXJ2ZXIudjEuQWdlbnRNZXRyaWNzRW50cnkihQEKEUFnZW50TWV0cmljc0VudHJ5EhAKCGFnZW50X2lkGAEgASgJEi0KCXRpbWVzdGFtcBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoHbWV0cmljcxgDIAEoCzIeLmNyb3VwaWVyLm9wcy52MS5NZXRyaWNzUmVwb3J0MtAFCg5Db250cm9sU2VydmljZRJgChRMaXN0RnVuY3Rpb25zU3VtbWFyeRIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eRowLmNyb3VwaWVyLnNlcnZlci52MS5MaXN0RnVuY3Rpb25zU3VtbWFyeVJlc3BvbnNlElUKCFJlZ2lzdGVyEiMuY3JvdXBpZXIuc2VydmVyLnYxLlJlZ2lzdGVyUmVxdWVzdBokLmNyb3VwaWVyLnNlcnZlci52MS5SZWdpc3RlclJlc3BvbnNlElgKCUhlYXJ0YmVhdBIkLmNyb3VwaWVyLnNlcnZlci52MS5IZWFydGJlYXRSZXF1ZXN0GiUuY3JvdXBpZXIuc2VydmVyLnYxLkhlYXJ0YmVhdFJlc3BvbnNlEnkKFFJlZ2lzdGVyQ2FwYWJpbGl0aWVzEi8uY3JvdXBpZXIuc2VydmVyLnYxLlJlZ2lzdGVyQ2FwYWJpbGl0aWVzUmVxdWVzdBowLmNyb3VwaWVyLnNlcnZlci52MS5SZWdpc3RlckNhcGFiaWxpdGllc1Jlc3BvbnNlEmAKEkdldEFnZW50U3lzdGVtSW5mbxItLmNyb3VwaWVyLnNlcnZlci52MS5HZXRBZ2VudFN5c3RlbUluZm9SZXF1ZXN0GhsuY3JvdXBpZXIub3BzLnYxLlN5c3RlbUluZm8SawoSTGlzdEFnZW50UHJvY2Vzc2VzEi0uY3JvdXBpZXIuc2VydmVyLnYxLkxpc3RBZ2VudFByb2Nlc3Nlc1JlcXVlc3QaJi5jcm91cGllci5vcHMudjEuTGlzdFByb2Nlc3Nlc1Jlc3BvbnNlEmEKDFF1ZXJ5TWV0cmljcxInLmNyb3VwaWVyLnNlcnZlci52MS5RdWVyeU1ldHJpY3NSZXF1ZXN0GiguY3JvdXBpZXIuc2VydmVyLnYxLlF1ZXJ5TWV0cmljc1Jlc3BvbnNlQmoKJWlvLmdpdGh1Yi5jdWloYWlydS5jcm91cGllci5zZXJ2ZXIudjFQAVo/Z2l0aHViLmNvbS9jdWloYWlydS9jcm91cGllci9wa2cvcGIvY3JvdXBpZXIvc2VydmVyL3YxO3NlcnZlcnYxYgZwcm90bzM", [file_croupier_common_v1_ui, file_croupier_ops_v1_ops, file_google_protobuf_empty, file_google_protobuf_timestamp]);
 
 /**
  * Server-side Function Descriptor
@@ -376,6 +378,131 @@ export const ListFunctionsSummaryResponseSchema: GenMessage<ListFunctionsSummary
   messageDesc(file_croupier_server_v1_server_control, 9);
 
 /**
+ * GetAgentSystemInfoRequest requests system info for a specific agent.
+ *
+ * @generated from message croupier.server.v1.GetAgentSystemInfoRequest
+ */
+export type GetAgentSystemInfoRequest = Message<"croupier.server.v1.GetAgentSystemInfoRequest"> & {
+  /**
+   * Agent ID to query
+   *
+   * @generated from field: string agent_id = 1;
+   */
+  agentId: string;
+};
+
+/**
+ * Describes the message croupier.server.v1.GetAgentSystemInfoRequest.
+ * Use `create(GetAgentSystemInfoRequestSchema)` to create a new message.
+ */
+export const GetAgentSystemInfoRequestSchema: GenMessage<GetAgentSystemInfoRequest> = /*@__PURE__*/
+  messageDesc(file_croupier_server_v1_server_control, 10);
+
+/**
+ * ListAgentProcessesRequest lists processes on a specific agent.
+ *
+ * @generated from message croupier.server.v1.ListAgentProcessesRequest
+ */
+export type ListAgentProcessesRequest = Message<"croupier.server.v1.ListAgentProcessesRequest"> & {
+  /**
+   * Agent ID to query
+   *
+   * @generated from field: string agent_id = 1;
+   */
+  agentId: string;
+};
+
+/**
+ * Describes the message croupier.server.v1.ListAgentProcessesRequest.
+ * Use `create(ListAgentProcessesRequestSchema)` to create a new message.
+ */
+export const ListAgentProcessesRequestSchema: GenMessage<ListAgentProcessesRequest> = /*@__PURE__*/
+  messageDesc(file_croupier_server_v1_server_control, 11);
+
+/**
+ * QueryMetricsRequest queries stored metrics from agents.
+ *
+ * @generated from message croupier.server.v1.QueryMetricsRequest
+ */
+export type QueryMetricsRequest = Message<"croupier.server.v1.QueryMetricsRequest"> & {
+  /**
+   * Specific agent IDs to query (empty = all)
+   *
+   * @generated from field: repeated string agent_ids = 1;
+   */
+  agentIds: string[];
+
+  /**
+   * Filter metrics since this time
+   *
+   * @generated from field: google.protobuf.Timestamp since = 2;
+   */
+  since?: Timestamp;
+
+  /**
+   * Maximum number of entries to return (default 100)
+   *
+   * @generated from field: uint32 limit = 3;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message croupier.server.v1.QueryMetricsRequest.
+ * Use `create(QueryMetricsRequestSchema)` to create a new message.
+ */
+export const QueryMetricsRequestSchema: GenMessage<QueryMetricsRequest> = /*@__PURE__*/
+  messageDesc(file_croupier_server_v1_server_control, 12);
+
+/**
+ * QueryMetricsResponse contains metrics entries from agents.
+ *
+ * @generated from message croupier.server.v1.QueryMetricsResponse
+ */
+export type QueryMetricsResponse = Message<"croupier.server.v1.QueryMetricsResponse"> & {
+  /**
+   * @generated from field: repeated croupier.server.v1.AgentMetricsEntry entries = 1;
+   */
+  entries: AgentMetricsEntry[];
+};
+
+/**
+ * Describes the message croupier.server.v1.QueryMetricsResponse.
+ * Use `create(QueryMetricsResponseSchema)` to create a new message.
+ */
+export const QueryMetricsResponseSchema: GenMessage<QueryMetricsResponse> = /*@__PURE__*/
+  messageDesc(file_croupier_server_v1_server_control, 13);
+
+/**
+ * AgentMetricsEntry represents a single metrics report from an agent.
+ *
+ * @generated from message croupier.server.v1.AgentMetricsEntry
+ */
+export type AgentMetricsEntry = Message<"croupier.server.v1.AgentMetricsEntry"> & {
+  /**
+   * @generated from field: string agent_id = 1;
+   */
+  agentId: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp timestamp = 2;
+   */
+  timestamp?: Timestamp;
+
+  /**
+   * @generated from field: croupier.ops.v1.MetricsReport metrics = 3;
+   */
+  metrics?: MetricsReport;
+};
+
+/**
+ * Describes the message croupier.server.v1.AgentMetricsEntry.
+ * Use `create(AgentMetricsEntrySchema)` to create a new message.
+ */
+export const AgentMetricsEntrySchema: GenMessage<AgentMetricsEntry> = /*@__PURE__*/
+  messageDesc(file_croupier_server_v1_server_control, 14);
+
+/**
  * Server Control Service - Internal interface for agent registration and management
  *
  * @generated from service croupier.server.v1.ControlService
@@ -420,6 +547,36 @@ export const ControlService: GenService<{
     methodKind: "unary";
     input: typeof RegisterCapabilitiesRequestSchema;
     output: typeof RegisterCapabilitiesResponseSchema;
+  },
+  /**
+   * GetAgentSystemInfo retrieves system info for a specific agent.
+   *
+   * @generated from rpc croupier.server.v1.ControlService.GetAgentSystemInfo
+   */
+  getAgentSystemInfo: {
+    methodKind: "unary";
+    input: typeof GetAgentSystemInfoRequestSchema;
+    output: typeof SystemInfoSchema;
+  },
+  /**
+   * ListAgentProcesses lists processes on a specific agent.
+   *
+   * @generated from rpc croupier.server.v1.ControlService.ListAgentProcesses
+   */
+  listAgentProcesses: {
+    methodKind: "unary";
+    input: typeof ListAgentProcessesRequestSchema;
+    output: typeof ListProcessesResponseSchema;
+  },
+  /**
+   * QueryMetrics queries stored metrics from agents.
+   *
+   * @generated from rpc croupier.server.v1.ControlService.QueryMetrics
+   */
+  queryMetrics: {
+    methodKind: "unary";
+    input: typeof QueryMetricsRequestSchema;
+    output: typeof QueryMetricsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_croupier_server_v1_server_control, 0);

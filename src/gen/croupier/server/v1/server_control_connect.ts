@@ -4,7 +4,8 @@
 // @ts-nocheck
 
 import { Empty, MethodKind } from "@bufbuild/protobuf";
-import { HeartbeatRequest, HeartbeatResponse, ListFunctionsSummaryResponse, RegisterCapabilitiesRequest, RegisterCapabilitiesResponse, RegisterRequest, RegisterResponse } from "./server_control_pb.ts";
+import { GetAgentSystemInfoRequest, HeartbeatRequest, HeartbeatResponse, ListAgentProcessesRequest, ListFunctionsSummaryResponse, QueryMetricsRequest, QueryMetricsResponse, RegisterCapabilitiesRequest, RegisterCapabilitiesResponse, RegisterRequest, RegisterResponse } from "./server_control_pb.ts";
+import { ListProcessesResponse, SystemInfo } from "../../ops/v1/ops_pb.ts";
 
 /**
  * Server Control Service - Internal interface for agent registration and management
@@ -56,6 +57,39 @@ export const ControlService = {
       name: "RegisterCapabilities",
       I: RegisterCapabilitiesRequest,
       O: RegisterCapabilitiesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetAgentSystemInfo retrieves system info for a specific agent.
+     *
+     * @generated from rpc croupier.server.v1.ControlService.GetAgentSystemInfo
+     */
+    getAgentSystemInfo: {
+      name: "GetAgentSystemInfo",
+      I: GetAgentSystemInfoRequest,
+      O: SystemInfo,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListAgentProcesses lists processes on a specific agent.
+     *
+     * @generated from rpc croupier.server.v1.ControlService.ListAgentProcesses
+     */
+    listAgentProcesses: {
+      name: "ListAgentProcesses",
+      I: ListAgentProcessesRequest,
+      O: ListProcessesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * QueryMetrics queries stored metrics from agents.
+     *
+     * @generated from rpc croupier.server.v1.ControlService.QueryMetrics
+     */
+    queryMetrics: {
+      name: "QueryMetrics",
+      I: QueryMetricsRequest,
+      O: QueryMetricsResponse,
       kind: MethodKind.Unary,
     },
   }
