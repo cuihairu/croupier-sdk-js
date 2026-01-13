@@ -4,10 +4,9 @@ import { gzipSync } from 'node:zlib';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { createClient as createConnectClient, ConnectError, Code } from '@connectrpc/connect';
 import { connectNodeAdapter, createGrpcTransport } from '@connectrpc/connect-node';
-import { LocalControlService } from './gen/croupier/agent/local/v1/local_connect';
-import { ControlService } from './gen/croupier/control/v1/control_connect';
-import { InvokerService } from './gen/croupier/sdk/v1/invoker_connect';
-import type { InvokeResponse, JobEvent, StartJobResponse } from './gen/croupier/sdk/v1/invoker_pb';
+import { LocalControlService } from './gen/croupier/agent/local/v1/local_pb';
+import { ControlService } from './gen/croupier/control/v1/control_pb';
+import { InvokerService, type InvokeResponse, type JobEvent, type StartJobResponse } from './gen/croupier/sdk/v1/invoker_pb';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
