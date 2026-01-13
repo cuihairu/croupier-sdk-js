@@ -50,8 +50,7 @@
     "@connectrpc/connect-node": "^2.1.1"
   },
   "devDependencies": {
-    "@bufbuild/protoc-gen-connect-es": "^0.13.0",
-    "@bufbuild/protoc-gen-es": "^2.10.2",
+    "@bufbuild/protoc-gen-es": "^2.2.3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.8.0",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
