@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file croupier/common/v1/ui.proto.
  */
 export const file_croupier_common_v1_ui: GenFile = /*@__PURE__*/
-  fileDesc("Chtjcm91cGllci9jb21tb24vdjEvdWkucHJvdG8SEmNyb3VwaWVyLmNvbW1vbi52MSIiCghJMThuVGV4dBIKCgJlbhgBIAEoCRIKCgJ6aBgCIAEoCSJwCgRNZW51Eg8KB3NlY3Rpb24YASABKAkSDQoFZ3JvdXAYAiABKAkSDAoEcGF0aBgDIAEoCRINCgVvcmRlchgEIAEoBRIMCgRpY29uGAUgASgJEg0KBWJhZGdlGAYgASgJEg4KBmhpZGRlbhgHIAEoCCIqCgtSb2xlQmluZGluZxIMCgRyb2xlGAEgASgJEg0KBXZlcmJzGAIgAygJItIBCg5QZXJtaXNzaW9uU3BlYxINCgV2ZXJicxgBIAMoCRIOCgZzY29wZXMYAiADKAkSMQoIZGVmYXVsdHMYAyADKAsyHy5jcm91cGllci5jb21tb24udjEuUm9sZUJpbmRpbmcSPwoHaTE4bl96aBgEIAMoCzIuLmNyb3VwaWVyLmNvbW1vbi52MS5QZXJtaXNzaW9uU3BlYy5JMThuWmhFbnRyeRotCgtJMThuWmhFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBQmoKJWlvLmdpdGh1Yi5jdWloYWlydS5jcm91cGllci5jb21tb24udjFQAVo/Z2l0aHViLmNvbS9jdWloYWlydS9jcm91cGllci9wa2cvcGIvY3JvdXBpZXIvY29tbW9uL3YxO2NvbW1vbnYxYgZwcm90bzM");
+  fileDesc("Chtjcm91cGllci9jb21tb24vdjEvdWkucHJvdG8SEmNyb3VwaWVyLmNvbW1vbi52MSIiCghJMThuVGV4dBIKCgJlbhgBIAEoCRIKCgJ6aBgCIAEoCSJwCgRNZW51Eg8KB3NlY3Rpb24YASABKAkSDQoFZ3JvdXAYAiABKAkSDAoEcGF0aBgDIAEoCRINCgVvcmRlchgEIAEoBRIMCgRpY29uGAUgASgJEg0KBWJhZGdlGAYgASgJEg4KBmhpZGRlbhgHIAEoCCIqCgtSb2xlQmluZGluZxIMCgRyb2xlGAEgASgJEg0KBXZlcmJzGAIgAygJItIBCg5QZXJtaXNzaW9uU3BlYxINCgV2ZXJicxgBIAMoCRIOCgZzY29wZXMYAiADKAkSMQoIZGVmYXVsdHMYAyADKAsyHy5jcm91cGllci5jb21tb24udjEuUm9sZUJpbmRpbmcSPwoHaTE4bl96aBgEIAMoCzIuLmNyb3VwaWVyLmNvbW1vbi52MS5QZXJtaXNzaW9uU3BlYy5JMThuWmhFbnRyeRotCgtJMThuWmhFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIvEBCg1YUmVuZGVyV2lkZ2V0Eg4KBndpZGdldBgBIAEoCRINCgVsYWJlbBgCIAEoCRITCgtwbGFjZWhvbGRlchgDIAEoCRIQCghkaXNhYmxlZBgEIAEoCBIRCglyZWFkX29ubHkYBSABKAgSDgoGaGlkZGVuGAYgASgIEgwKBHNwYW4YByABKAUSOwoFcHJvcHMYCCADKAsyLC5jcm91cGllci5jb21tb24udjEuWFJlbmRlcldpZGdldC5Qcm9wc0VudHJ5GiwKClByb3BzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKgAgoRWFJlbmRlckZvcm1Db25maWcSEwoLbGF5b3V0X3R5cGUYASABKAkSDgoGY29sdW1uGAIgASgFEhMKC2xhYmVsX2FsaWduGAMgASgJEhMKC2xhYmVsX3dpZHRoGAQgASgFEg0KBWNvbG9uGAUgASgIEkMKB3dpZGdldHMYBiADKAsyMi5jcm91cGllci5jb21tb24udjEuWFJlbmRlckZvcm1Db25maWcuV2lkZ2V0c0VudHJ5EhUKDWRpc3BsYXlfb3JkZXIYByADKAkaUQoMV2lkZ2V0c0VudHJ5EgsKA2tleRgBIAEoCRIwCgV2YWx1ZRgCIAEoCzIhLmNyb3VwaWVyLmNvbW1vbi52MS5YUmVuZGVyV2lkZ2V0OgI4ASLJAQoSUm91dGVEaXNwbGF5Q29uZmlnEhUKDXJvdXRlX3BhdHRlcm4YASABKAkSOgoLZm9ybV9jb25maWcYAiABKAsyJS5jcm91cGllci5jb21tb24udjEuWFJlbmRlckZvcm1Db25maWcSFQoNaGlkZGVuX2ZpZWxkcxgDIAMoCRIXCg9yZXF1aXJlZF9maWVsZHMYBCADKAkSGgoSc3VibWl0X2J1dHRvbl90ZXh0GAUgASgJEhQKDGNvbXBhY3RfbW9kZRgGIAEoCEJqCiVpby5naXRodWIuY3VpaGFpcnUuY3JvdXBpZXIuY29tbW9uLnYxUAFaP2dpdGh1Yi5jb20vY3VpaGFpcnUvY3JvdXBpZXIvcGtnL3BiL2Nyb3VwaWVyL2NvbW1vbi92MTtjb21tb252MWIGcHJvdG8z");
 
 /**
  * Generic i18n text with common languages.
@@ -166,4 +166,193 @@ export type PermissionSpec = Message<"croupier.common.v1.PermissionSpec"> & {
  */
 export const PermissionSpecSchema: GenMessage<PermissionSpec> = /*@__PURE__*/
   messageDesc(file_croupier_common_v1_ui, 3);
+
+/**
+ * XRender widget configuration for a field.
+ *
+ * @generated from message croupier.common.v1.XRenderWidget
+ */
+export type XRenderWidget = Message<"croupier.common.v1.XRenderWidget"> & {
+  /**
+   * Widget type: input/textarea/number/select/checkbox/radio/switch/date/time/json-editor/file
+   *
+   * @generated from field: string widget = 1;
+   */
+  widget: string;
+
+  /**
+   * Display label (supports i18n key)
+   *
+   * @generated from field: string label = 2;
+   */
+  label: string;
+
+  /**
+   * Placeholder text
+   *
+   * @generated from field: string placeholder = 3;
+   */
+  placeholder: string;
+
+  /**
+   * Whether the field is disabled
+   *
+   * @generated from field: bool disabled = 4;
+   */
+  disabled: boolean;
+
+  /**
+   * Whether the field is read-only
+   *
+   * @generated from field: bool read_only = 5;
+   */
+  readOnly: boolean;
+
+  /**
+   * Whether the field is hidden
+   *
+   * @generated from field: bool hidden = 6;
+   */
+  hidden: boolean;
+
+  /**
+   * Grid span (1-24)
+   *
+   * @generated from field: int32 span = 7;
+   */
+  span: number;
+
+  /**
+   * Additional widget properties
+   *
+   * @generated from field: map<string, string> props = 8;
+   */
+  props: { [key: string]: string };
+};
+
+/**
+ * Describes the message croupier.common.v1.XRenderWidget.
+ * Use `create(XRenderWidgetSchema)` to create a new message.
+ */
+export const XRenderWidgetSchema: GenMessage<XRenderWidget> = /*@__PURE__*/
+  messageDesc(file_croupier_common_v1_ui, 4);
+
+/**
+ * XRender form configuration.
+ *
+ * @generated from message croupier.common.v1.XRenderFormConfig
+ */
+export type XRenderFormConfig = Message<"croupier.common.v1.XRenderFormConfig"> & {
+  /**
+   * Layout: default/inline/flex
+   *
+   * @generated from field: string layout_type = 1;
+   */
+  layoutType: string;
+
+  /**
+   * Column count for grid layout
+   *
+   * @generated from field: int32 column = 2;
+   */
+  column: number;
+
+  /**
+   * Label alignment: left/right/top
+   *
+   * @generated from field: string label_align = 3;
+   */
+  labelAlign: string;
+
+  /**
+   * Label width in pixels
+   *
+   * @generated from field: int32 label_width = 4;
+   */
+  labelWidth: number;
+
+  /**
+   * Show colon after label
+   *
+   * @generated from field: bool colon = 5;
+   */
+  colon: boolean;
+
+  /**
+   * Field-specific widget configs (key: field path)
+   *
+   * @generated from field: map<string, croupier.common.v1.XRenderWidget> widgets = 6;
+   */
+  widgets: { [key: string]: XRenderWidget };
+
+  /**
+   * Field display order
+   *
+   * @generated from field: repeated string display_order = 7;
+   */
+  displayOrder: string[];
+};
+
+/**
+ * Describes the message croupier.common.v1.XRenderFormConfig.
+ * Use `create(XRenderFormConfigSchema)` to create a new message.
+ */
+export const XRenderFormConfigSchema: GenMessage<XRenderFormConfig> = /*@__PURE__*/
+  messageDesc(file_croupier_common_v1_ui, 5);
+
+/**
+ * Route-specific display configuration for functions.
+ *
+ * @generated from message croupier.common.v1.RouteDisplayConfig
+ */
+export type RouteDisplayConfig = Message<"croupier.common.v1.RouteDisplayConfig"> & {
+  /**
+   * Route pattern (e.g., "/functions/*", "/quick-actions")
+   *
+   * @generated from field: string route_pattern = 1;
+   */
+  routePattern: string;
+
+  /**
+   * Form configuration for this route
+   *
+   * @generated from field: croupier.common.v1.XRenderFormConfig form_config = 2;
+   */
+  formConfig?: XRenderFormConfig;
+
+  /**
+   * Fields to hide in this route
+   *
+   * @generated from field: repeated string hidden_fields = 3;
+   */
+  hiddenFields: string[];
+
+  /**
+   * Fields required in this route
+   *
+   * @generated from field: repeated string required_fields = 4;
+   */
+  requiredFields: string[];
+
+  /**
+   * Custom submit button text
+   *
+   * @generated from field: string submit_button_text = 5;
+   */
+  submitButtonText: string;
+
+  /**
+   * Use compact display mode
+   *
+   * @generated from field: bool compact_mode = 6;
+   */
+  compactMode: boolean;
+};
+
+/**
+ * Describes the message croupier.common.v1.RouteDisplayConfig.
+ * Use `create(RouteDisplayConfigSchema)` to create a new message.
+ */
+export const RouteDisplayConfigSchema: GenMessage<RouteDisplayConfig> = /*@__PURE__*/
+  messageDesc(file_croupier_common_v1_ui, 6);
 
