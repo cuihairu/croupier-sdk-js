@@ -57,3 +57,8 @@ client.registerFunction({
 
 client.serve();
 ```
+
+## 下一步
+
+- [主线程调度器](./threading.md) - 回调执行时机控制
+- [API 参考](../api/) - 完整的 API 文档
