@@ -2,13 +2,19 @@
  * Croupier JavaScript SDK
  *
  * Provides function registration and invocation for the Croupier platform.
- * Note: This is a refactored version without gRPC dependencies.
- * Transport layer should be implemented separately.
+ * Uses NNG (nanomsg-next-gen) for transport layer.
  */
 
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { TextDecoder, TextEncoder } from 'node:util';
+import { NNGTransport } from './transport';
+import {
+  MSG_INVOKE_REQUEST,
+  MSG_INVOKE_RESPONSE,
+  MSG_START_JOB_REQUEST,
+  MSG_START_JOB_RESPONSE,
+} from './protocol';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -53,7 +59,7 @@ interface JobEvent {
   type: string;
   message?: string;
   progress?: number;
-  payload?: Uint8Array;
+  payload: Uint8Array;
 }
 
 class JobState {
@@ -120,11 +126,12 @@ export class BasicClient implements CroupierClient {
   private handlers: Map<string, FunctionHandler> = new Map();
   private descriptors: Map<string, FunctionDescriptor> = new Map();
   private jobStates: Map<string, JobState> = new Map();
+  private transport: NNGTransport | null = null;
   private connected = false;
 
   constructor(config: ClientConfig = {}) {
     this.config = {
-      agentAddr: '127.0.0.1:19090',
+      agentAddr: 'tcp://127.0.0.1:19090',
       timeout: 30000,
       serviceId: `node-sdk-${randomUUID()}`,
       serviceVersion: '1.0.0',
@@ -142,11 +149,17 @@ export class BasicClient implements CroupierClient {
     if (this.handlers.size === 0) {
       throw new Error('Register at least one function before connecting.');
     }
-    // TODO: Implement transport connection (NNG, etc.)
+
+    this.transport = new NNGTransport(this.config.agentAddr, this.config.timeout);
+    this.transport.connect();
     this.connected = true;
   }
 
   async disconnect(): Promise<void> {
+    if (this.transport) {
+      this.transport.close();
+      this.transport = null;
+    }
     this.connected = false;
   }
 
@@ -195,12 +208,27 @@ export class BasicClient implements CroupierClient {
   async invoke(
     functionId: string,
     payload: string,
-    metadata: Record<string, string> = {},
+    metadata: Record<string, string> = {}
   ): Promise<string> {
     const handler = this.handlers.get(functionId);
     if (!handler) {
       throw new Error(`Function ${functionId} not found`);
     }
+
+    // If transport is connected, use remote invocation
+    if (this.connected && this.transport) {
+      const requestData = Buffer.from(
+        JSON.stringify({
+          function_id: functionId,
+          payload: encoder.encode(payload),
+          metadata,
+        })
+      );
+      const [, responseData] = this.transport.call(MSG_INVOKE_REQUEST, requestData);
+      return decoder.decode(responseData);
+    }
+
+    // Local invocation
     const context = JSON.stringify(metadata);
     const result = await handler(context, payload);
     return result;
@@ -209,7 +237,7 @@ export class BasicClient implements CroupierClient {
   startJob(
     functionId: string,
     payload: string,
-    metadata: Record<string, string> = {},
+    metadata: Record<string, string> = {}
   ): string {
     const handler = this.handlers.get(functionId);
     if (!handler) {
@@ -239,7 +267,7 @@ export class BasicClient implements CroupierClient {
             progress: 100,
             payload: encoder.encode(result ?? ''),
           },
-          true,
+          true
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Handler failed';
@@ -250,7 +278,7 @@ export class BasicClient implements CroupierClient {
             progress: 0,
             payload: new Uint8Array(),
           },
-          true,
+          true
         );
       } finally {
         this.jobStates.delete(jobId);
@@ -278,7 +306,7 @@ export class BasicClient implements CroupierClient {
           progress: 0,
           payload: new Uint8Array(),
         },
-        true,
+        true
       );
       this.jobStates.delete(jobId);
       return true;
@@ -316,5 +344,9 @@ export class BasicClient implements CroupierClient {
 export function createClient(config?: ClientConfig): CroupierClient {
   return new BasicClient(config);
 }
+
+// Export protocol and transport
+export * from './protocol';
+export * from './transport';
 
 export { BasicClient as default };
