@@ -3,9 +3,11 @@
  *
  * Implements the NNG (nanomsg-next-gen) based transport for communication
  * with Croupier Agent using REQ/REP pattern.
+ *
+ * Uses the '@rustup/nng' npm package for NNG bindings.
  */
 
-import * as nng from 'nng';
+import { Socket, SocketOptions } from '@rustup/nng';
 import {
   HEADER_SIZE,
   ParsedMessage,
@@ -20,7 +22,7 @@ import {
 export class NNGTransport {
   private address: string;
   private timeoutMs: number;
-  private socket: nng.Socket | null = null;
+  private socket: Socket | null = null;
   private connected: boolean = false;
   private requestId: number = 0;
 
@@ -37,10 +39,13 @@ export class NNGTransport {
       return;
     }
 
-    this.socket = nng.socket('req');
-    this.socket.setOption('nng/RecvTimeout', this.timeoutMs);
-    this.socket.setOption('nng/SendTimeout', this.timeoutMs);
-    this.socket.dial(this.address);
+    const options: SocketOptions = {
+      recvTimeout: this.timeoutMs,
+      sendTimeout: this.timeoutMs,
+    };
+
+    this.socket = new Socket(options);
+    this.socket.connect(this.address);
     this.connected = true;
   }
 
@@ -64,7 +69,7 @@ export class NNGTransport {
    * Check if connected.
    */
   isConnected(): boolean {
-    return this.connected;
+    return this.connected && (this.socket?.connected() ?? false);
   }
 
   /**
@@ -85,11 +90,8 @@ export class NNGTransport {
     // Build message with protocol header
     const message = newMessage(msgType, this.requestId, data);
 
-    // Send request
-    this.socket.send(message);
-
-    // Receive response
-    const response = this.socket.recv() as Buffer;
+    // Send request and receive response (NNG REQ/REP is synchronous)
+    const response = this.socket.send(message);
 
     // Parse response
     const parsed: ParsedMessage = parseMessage(response);
@@ -113,7 +115,7 @@ export class NNGTransport {
 export class NNGServer {
   private address: string;
   private timeoutMs: number;
-  private socket: nng.Socket | null = null;
+  private disposable: ReturnType<typeof Socket.recvMessage> | null = null;
   private running: boolean = false;
   private handler: ((msgType: number, reqId: number, body: Buffer) => Buffer) | null = null;
 
@@ -137,13 +139,35 @@ export class NNGServer {
       return;
     }
 
-    this.socket = nng.socket('rep');
-    this.socket.setOption('nng/RecvTimeout', 1000); // 1 second for responsive shutdown
-    this.socket.listen(this.address);
-    this.running = true;
+    const options: SocketOptions = {
+      recvTimeout: this.timeoutMs,
+      sendTimeout: this.timeoutMs,
+    };
 
-    // Start server loop in background
-    setImmediate(() => this.serveLoop());
+    this.disposable = Socket.recvMessage(
+      this.address,
+      options,
+      (data: Buffer): Buffer => {
+        // Parse incoming message
+        const parsed = parseMessage(data);
+
+        // Handle request
+        let responseBody: Buffer = Buffer.alloc(0);
+        if (this.handler) {
+          try {
+            responseBody = this.handler(parsed.msgId, parsed.reqId, parsed.body);
+          } catch (e) {
+            console.error('Handler error:', e);
+          }
+        }
+
+        // Build and return response
+        const respMsgType = getResponseMsgId(parsed.msgId);
+        return newMessage(respMsgType, parsed.reqId, responseBody);
+      }
+    );
+
+    this.running = true;
   }
 
   /**
@@ -156,9 +180,9 @@ export class NNGServer {
 
     this.running = false;
 
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+    if (this.disposable) {
+      this.disposable.dispose();
+      this.disposable = null;
     }
   }
 
@@ -167,43 +191,5 @@ export class NNGServer {
    */
   isRunning(): boolean {
     return this.running;
-  }
-
-  private serveLoop(): void {
-    if (!this.running || !this.socket) {
-      return;
-    }
-
-    try {
-      const data = this.socket.recv() as Buffer;
-      const parsed = parseMessage(data);
-
-      // Handle request
-      let responseBody: Buffer = Buffer.alloc(0);
-      if (this.handler) {
-        try {
-          responseBody = this.handler(parsed.msgId, parsed.reqId, parsed.body);
-        } catch (e) {
-          console.error('Handler error:', e);
-        }
-      }
-
-      // Build response
-      const respMsgType = getResponseMsgId(parsed.msgId);
-      const response = newMessage(respMsgType, parsed.reqId, responseBody);
-
-      // Send response
-      this.socket.send(response);
-    } catch (e) {
-      // Timeout is expected for responsive shutdown
-      if (this.running) {
-        // Continue serving
-      }
-    }
-
-    // Continue loop
-    if (this.running) {
-      setImmediate(() => this.serveLoop());
-    }
   }
 }

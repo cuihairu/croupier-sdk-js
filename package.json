@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "protobufjs": "^7.2.5",
-    "nng": "^1.0.0"
+    "@rustup/nng": "^0.1.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
