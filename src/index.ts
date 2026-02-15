@@ -1,12 +1,14 @@
-import http2, { Http2SecureServer, Http2Server } from 'node:http2';
+/**
+ * Croupier JavaScript SDK
+ *
+ * Provides function registration and invocation for the Croupier platform.
+ * Note: This is a refactored version without gRPC dependencies.
+ * Transport layer should be implemented separately.
+ */
+
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { createClient as createConnectClient, ConnectError, Code } from '@connectrpc/connect';
-import { connectNodeAdapter, createGrpcTransport } from '@connectrpc/connect-node';
-import { LocalControlService } from './gen/croupier/agent/local/v1/local_pb';
-import { ControlService } from './gen/croupier/control/v1/control_pb';
-import { InvokerService, type InvokeResponse, type JobEvent, type StartJobResponse } from './gen/croupier/sdk/v1/invoker_pb';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -16,37 +18,42 @@ export interface FunctionDescriptor {
   version: string;
   name?: string;
   description?: string;
-  input_schema?: Record<string, any>;
-  output_schema?: Record<string, any>;
+  input_schema?: Record<string, unknown>;
+  output_schema?: Record<string, unknown>;
+  category?: string;
+  risk?: string;
+  entity?: string;
+  operation?: string;
 }
 
 export interface FunctionHandler {
   (context: string, payload: string): Promise<string> | string;
 }
 
-export interface FileTransferConfig {
+export interface ClientConfig {
   agentAddr?: string;
-  controlAddr?: string;
   timeout?: number;
-  retryAttempts?: number;
-  insecure?: boolean;
   serviceId?: string;
   serviceVersion?: string;
-  localListen?: string;
   heartbeatIntervalSeconds?: number;
   providerLang?: string;
   providerSdk?: string;
 }
 
-export interface FileUploadRequest {
-  filePath: string;
-  content: Buffer | string;
-  metadata?: Record<string, any>;
-}
-
 interface LocalFunctionDescriptor {
   id: string;
   version: string;
+  category?: string;
+  risk?: string;
+  entity?: string;
+  operation?: string;
+}
+
+interface JobEvent {
+  type: string;
+  message?: string;
+  progress?: number;
+  payload?: Uint8Array;
 }
 
 class JobState {
@@ -101,43 +108,26 @@ class JobState {
 export interface CroupierClient {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): Promise<void>;
-  uploadFile(request: FileUploadRequest): Promise<void>;
+  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void;
+  invoke(functionId: string, payload: string, metadata?: Record<string, string>): Promise<string>;
+  startJob(functionId: string, payload: string, metadata?: Record<string, string>): string;
+  streamJob(jobId: string): AsyncIterable<JobEvent>;
+  cancelJob(jobId: string): boolean;
 }
 
 export class BasicClient implements CroupierClient {
-  private readonly config: Required<FileTransferConfig>;
-
+  private readonly config: Required<ClientConfig>;
   private handlers: Map<string, FunctionHandler> = new Map();
-
   private descriptors: Map<string, FunctionDescriptor> = new Map();
-
   private jobStates: Map<string, JobState> = new Map();
-
-  private localServer?: Http2Server | Http2SecureServer;
-
-  private localAddress = '';
-
-  private agentClient?: any;
-
-  private transport?: ReturnType<typeof createGrpcTransport>;
-
-  private heartbeatTimer?: NodeJS.Timeout;
-
-  private sessionId = '';
-
   private connected = false;
 
-  constructor(config: FileTransferConfig = {}) {
+  constructor(config: ClientConfig = {}) {
     this.config = {
       agentAddr: '127.0.0.1:19090',
-      controlAddr: '',
       timeout: 30000,
-      retryAttempts: 3,
-      insecure: true,
       serviceId: `node-sdk-${randomUUID()}`,
       serviceVersion: '1.0.0',
-      localListen: '127.0.0.1:0',
       heartbeatIntervalSeconds: 60,
       providerLang: 'node',
       providerSdk: 'croupier-js-sdk',
@@ -150,34 +140,17 @@ export class BasicClient implements CroupierClient {
       return;
     }
     if (this.handlers.size === 0) {
-      throw new Error('Register at least one function before connecting to the agent.');
+      throw new Error('Register at least one function before connecting.');
     }
-
-    await this.startLocalServer();
-    await this.connectAgent();
-    await this.registerWithAgent();
-    await this.registerCapabilities();
-
+    // TODO: Implement transport connection (NNG, etc.)
     this.connected = true;
   }
 
   async disconnect(): Promise<void> {
     this.connected = false;
-    this.sessionId = '';
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = undefined;
-    }
-    this.transport = undefined;
-    if (this.localServer) {
-      await new Promise<void>((resolve) => {
-        this.localServer?.close(() => resolve());
-      });
-      this.localServer = undefined;
-    }
   }
 
-  async registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): Promise<void> {
+  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void {
     if (this.connected) {
       throw new Error('Cannot register new functions while connected. Disconnect first.');
     }
@@ -188,173 +161,84 @@ export class BasicClient implements CroupierClient {
     this.handlers.set(descriptor.id, handler);
   }
 
-  async uploadFile(_request: FileUploadRequest): Promise<void> {
-    throw new Error('File upload is not yet implemented for the Node.js SDK.');
-  }
-
-  private async startLocalServer(): Promise<void> {
-    if (this.localServer) {
-      return;
+  getFunctionDescriptor(functionId: string): LocalFunctionDescriptor | undefined {
+    const desc = this.descriptors.get(functionId);
+    if (!desc) {
+      return undefined;
     }
-
-    const [host, port] = this.parseAddress(this.config.localListen);
-    const handler = connectNodeAdapter({
-      routes: (router) => {
-        router.service(InvokerService, {
-          invoke: async (req: any) =>
-            this.handleInvoke(req.functionId, req.metadata ?? {}, req.payload ?? new Uint8Array()),
-          startJob: async (req: any) =>
-            this.handleStartJob(req.functionId, req.metadata ?? {}, req.payload ?? new Uint8Array()),
-          streamJob: (req: any) => this.handleStreamJob(req.jobId),
-          cancelJob: async (req: any) => this.handleCancelJob(req.jobId),
-        });
-      },
-    });
-    this.localServer = http2.createServer({}, handler);
-
-    await new Promise<void>((resolve, reject) => {
-      this.localServer?.once('error', reject);
-      this.localServer?.listen(port, host, () => resolve());
-    });
-
-    const addressInfo = this.localServer.address();
-    if (typeof addressInfo === 'object' && addressInfo) {
-      const address =
-        addressInfo.address === '::' || addressInfo.address === '0.0.0.0'
-          ? '127.0.0.1'
-          : addressInfo.address;
-      this.localAddress = `${address}:${addressInfo.port}`;
-    } else {
-      this.localAddress = this.config.localListen;
-    }
-  }
-
-  private async connectAgent(): Promise<void> {
-    const scheme = this.config.insecure ? 'http' : 'https';
-    const baseUrl = `${scheme}://${this.normalizeAddress(this.config.agentAddr)}`;
-
-    this.transport = createGrpcTransport({
-      baseUrl,
-    });
-    this.agentClient = createConnectClient(LocalControlService, this.transport);
-  }
-
-  private async registerWithAgent(): Promise<void> {
-    if (!this.agentClient) {
-      throw new Error('Agent client not initialized');
-    }
-    const functions: LocalFunctionDescriptor[] = Array.from(this.descriptors.values()).map((desc) => ({
+    return {
       id: desc.id,
       version: desc.version,
-    }));
+      category: desc.category,
+      risk: desc.risk,
+      entity: desc.entity,
+      operation: desc.operation,
+    };
+  }
 
-    const response = await this.agentClient.registerLocal({
+  getRegisterRequest(rpcAddr = '') {
+    return {
       serviceId: this.config.serviceId,
       version: this.config.serviceVersion,
-      rpcAddr: this.localAddress,
-      functions,
-    });
-    this.sessionId = response.sessionId ?? '';
-    this.startHeartbeat();
+      rpcAddr,
+      functions: Array.from(this.descriptors.values()).map((desc) => ({
+        id: desc.id,
+        version: desc.version,
+        category: desc.category || '',
+        risk: desc.risk || '',
+        entity: desc.entity || '',
+        operation: desc.operation || '',
+      })),
+    };
   }
 
-  private async registerCapabilities(): Promise<void> {
-    if (!this.config.controlAddr) {
-      return;
-    }
-
-    const manifest = this.buildManifest();
-    const compressed = gzipSync(Buffer.from(JSON.stringify(manifest)));
-
-    const transport = createGrpcTransport({
-      baseUrl: this.normalizeAddressWithScheme(this.config.controlAddr),
-    });
-    const controlClient = createConnectClient(ControlService, transport);
-    await controlClient.registerCapabilities({
-      provider: {
-        id: this.config.serviceId,
-        version: this.config.serviceVersion,
-        lang: this.config.providerLang ?? 'node',
-        sdk: this.config.providerSdk ?? 'croupier-js-sdk',
-      },
-      manifestJsonGz: compressed,
-    });
-  }
-
-  private startHeartbeat(): void {
-    if (!this.agentClient || !this.sessionId) {
-      return;
-    }
-    const intervalMs = (this.config.heartbeatIntervalSeconds ?? 60) * 1000;
-    this.heartbeatTimer = setInterval(async () => {
-      try {
-        await this.agentClient?.heartbeat({
-          serviceId: this.config.serviceId,
-          sessionId: this.sessionId,
-        });
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('[croupier] Heartbeat failed:', error);
-      }
-    }, intervalMs);
-  }
-
-  private async handleInvoke(
+  async invoke(
     functionId: string,
-    metadata: Record<string, string>,
-    payload: Uint8Array,
-  ): Promise<InvokeResponse> {
+    payload: string,
+    metadata: Record<string, string> = {},
+  ): Promise<string> {
     const handler = this.handlers.get(functionId);
     if (!handler) {
-      throw new ConnectError(`Function ${functionId} not registered`, Code.NotFound);
+      throw new Error(`Function ${functionId} not found`);
     }
-    const context = JSON.stringify(metadata ?? {});
-    const payloadString = decoder.decode(payload ?? new Uint8Array());
-    try {
-      const result = await handler(context, payloadString);
-      return {
-        payload: encoder.encode(result ?? ''),
-      } as InvokeResponse;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Handler failed';
-      throw new ConnectError(message, Code.Internal);
-    }
+    const context = JSON.stringify(metadata);
+    const result = await handler(context, payload);
+    return result;
   }
 
-  private async handleStartJob(
+  startJob(
     functionId: string,
-    metadata: Record<string, string>,
-    payload: Uint8Array,
-  ): Promise<StartJobResponse> {
+    payload: string,
+    metadata: Record<string, string> = {},
+  ): string {
     const handler = this.handlers.get(functionId);
     if (!handler) {
-      throw new ConnectError(`Function ${functionId} not registered`, Code.NotFound);
+      throw new Error(`Function ${functionId} not found`);
     }
+
     const jobId = `${functionId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const state = new JobState();
     this.jobStates.set(jobId, state);
-    state.push(
-      {
-        type: 'started',
-        message: 'job started',
-        progress: 0,
-        payload: new Uint8Array(),
-      } as JobEvent,
-    );
 
-    const context = JSON.stringify(metadata ?? {});
-    const payloadString = decoder.decode(payload ?? new Uint8Array());
+    state.push({
+      type: 'started',
+      message: 'job started',
+      progress: 0,
+      payload: new Uint8Array(),
+    });
+
+    const context = JSON.stringify(metadata);
 
     setImmediate(async () => {
       try {
-        const result = await handler(context, payloadString);
+        const result = await handler(context, payload);
         state.push(
           {
             type: 'completed',
             message: 'job completed',
             progress: 100,
             payload: encoder.encode(result ?? ''),
-          } as JobEvent,
+          },
           true,
         );
       } catch (error) {
@@ -365,7 +249,7 @@ export class BasicClient implements CroupierClient {
             message,
             progress: 0,
             payload: new Uint8Array(),
-          } as JobEvent,
+          },
           true,
         );
       } finally {
@@ -373,21 +257,18 @@ export class BasicClient implements CroupierClient {
       }
     });
 
-    return { jobId } as StartJobResponse;
+    return jobId;
   }
 
-  private handleStreamJob(jobId: string): AsyncIterable<JobEvent> {
-    if (!jobId) {
-      throw new ConnectError('job_id is required', Code.InvalidArgument);
-    }
+  streamJob(jobId: string): AsyncIterable<JobEvent> {
     const state = this.jobStates.get(jobId);
     if (!state) {
-      throw new ConnectError('job not found', Code.NotFound);
+      throw new Error(`Job ${jobId} not found`);
     }
     return state.stream();
   }
 
-  private async handleCancelJob(jobId: string): Promise<StartJobResponse> {
+  cancelJob(jobId: string): boolean {
     const state = this.jobStates.get(jobId);
     if (state) {
       state.push(
@@ -396,43 +277,20 @@ export class BasicClient implements CroupierClient {
           message: 'job cancelled',
           progress: 0,
           payload: new Uint8Array(),
-        } as JobEvent,
+        },
         true,
       );
       this.jobStates.delete(jobId);
+      return true;
     }
-    return { jobId } as StartJobResponse;
+    return false;
   }
 
-  private parseAddress(address: string): [string, number] {
-    if (address.includes('/')) {
-      const url = new URL(address);
-      return [url.hostname, Number(url.port) || 0];
-    }
-    const [host, port] = address.split(':');
-    return [host || '127.0.0.1', Number(port) || 0];
-  }
-
-  private normalizeAddress(address: string): string {
-    if (address.startsWith('http://') || address.startsWith('https://')) {
-      return address.replace(/^https?:\/\//, '');
-    }
-    return address;
-  }
-
-  private normalizeAddressWithScheme(address: string): string {
-    if (address.startsWith('http://') || address.startsWith('https://')) {
-      return address;
-    }
-    const scheme = this.config.insecure ? 'http' : 'https';
-    return `${scheme}://${address}`;
-  }
-
-  private buildManifest() {
+  buildManifest() {
     const functions = Array.from(this.descriptors.values()).map((desc) => ({
       id: desc.id,
       version: desc.version || '1.0.0',
-      category: desc.name,
+      category: desc.category,
       description: desc.description,
       input_schema: desc.input_schema,
       output_schema: desc.output_schema,
@@ -442,15 +300,20 @@ export class BasicClient implements CroupierClient {
       provider: {
         id: this.config.serviceId,
         version: this.config.serviceVersion,
-        lang: this.config.providerLang ?? 'node',
-        sdk: this.config.providerSdk ?? 'croupier-js-sdk',
+        lang: this.config.providerLang,
+        sdk: this.config.providerSdk,
       },
       functions,
     };
   }
+
+  getManifestGzipped(): Buffer {
+    const manifest = this.buildManifest();
+    return gzipSync(Buffer.from(JSON.stringify(manifest)));
+  }
 }
 
-export function createClient(config?: FileTransferConfig): CroupierClient {
+export function createClient(config?: ClientConfig): CroupierClient {
   return new BasicClient(config);
 }
 
