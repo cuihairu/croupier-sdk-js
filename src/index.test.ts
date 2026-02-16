@@ -1012,4 +1012,90 @@ describe('BasicClient', () => {
       expect(handler).toHaveBeenCalled();
     });
   });
+
+  describe('Configuration Options - localListen and controlAddr', () => {
+    test('localListen can be set', () => {
+      const client = new BasicClient({
+        localListen: '0.0.0.0:8080',
+      });
+      expect((client as any).config.localListen).toBe('0.0.0.0:8080');
+    });
+
+    test('localListen defaults to empty string', () => {
+      const client = new BasicClient();
+      expect((client as any).config.localListen).toBe('');
+    });
+
+    test('controlAddr can be set', () => {
+      const client = new BasicClient({
+        controlAddr: 'localhost:9090',
+      });
+      expect((client as any).config.controlAddr).toBe('localhost:9090');
+    });
+
+    test('controlAddr defaults to empty string', () => {
+      const client = new BasicClient();
+      expect((client as any).config.controlAddr).toBe('');
+    });
+
+    test('both localListen and controlAddr can be set together', () => {
+      const client = new BasicClient({
+        localListen: '127.0.0.1:0',
+        controlAddr: 'tcp://127.0.0.1:8080',
+      });
+      expect((client as any).config.localListen).toBe('127.0.0.1:0');
+      expect((client as any).config.controlAddr).toBe('tcp://127.0.0.1:8080');
+    });
+  });
+
+  describe('Configuration Options - Logging', () => {
+    test('disableLogging can be set to true', () => {
+      const client = new BasicClient({
+        disableLogging: true,
+      });
+      expect((client as any).config.disableLogging).toBe(true);
+    });
+
+    test('disableLogging defaults to false', () => {
+      const client = new BasicClient();
+      expect((client as any).config.disableLogging).toBe(false);
+    });
+
+    test('debugLogging can be set to true', () => {
+      const client = new BasicClient({
+        debugLogging: true,
+      });
+      expect((client as any).config.debugLogging).toBe(true);
+    });
+
+    test('debugLogging defaults to false', () => {
+      const client = new BasicClient();
+      expect((client as any).config.debugLogging).toBe(false);
+    });
+
+    test('logLevel can be set to valid values', () => {
+      const validLevels: Array<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'OFF'> = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'OFF'];
+
+      for (const level of validLevels) {
+        const client = new BasicClient({ logLevel: level });
+        expect((client as any).config.logLevel).toBe(level);
+      }
+    });
+
+    test('logLevel defaults to INFO', () => {
+      const client = new BasicClient();
+      expect((client as any).config.logLevel).toBe('INFO');
+    });
+
+    test('all logging options can be set together', () => {
+      const client = new BasicClient({
+        disableLogging: false,
+        debugLogging: true,
+        logLevel: 'DEBUG',
+      });
+      expect((client as any).config.disableLogging).toBe(false);
+      expect((client as any).config.debugLogging).toBe(true);
+      expect((client as any).config.logLevel).toBe('DEBUG');
+    });
+  });
 });

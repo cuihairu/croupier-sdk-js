@@ -206,6 +206,8 @@ export interface ClientConfig {
   // === Connection ===
   agentAddr?: string;
   timeout?: number;
+  localListen?: string;
+  controlAddr?: string;
 
   // === Service Identity ===
   serviceId?: string;
@@ -243,6 +245,11 @@ export interface ClientConfig {
   // === File Transfer ===
   enableFileTransfer?: boolean;
   maxFileSize?: number;
+
+  // === Logging ===
+  disableLogging?: boolean;
+  debugLogging?: boolean;
+  logLevel?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'OFF';
 }
 
 interface LocalFunctionDescriptor {
@@ -335,6 +342,8 @@ export class BasicClient implements CroupierClient {
       // Connection
       agentAddr: 'tcp://127.0.0.1:19090',
       timeout: 30000,
+      localListen: '',
+      controlAddr: '',
 
       // Service Identity
       serviceId: `node-sdk-${randomUUID()}`,
@@ -369,6 +378,11 @@ export class BasicClient implements CroupierClient {
       // File Transfer
       enableFileTransfer: false,
       maxFileSize: 10485760, // 10 MB default
+
+      // Logging
+      disableLogging: false,
+      debugLogging: false,
+      logLevel: 'INFO',
 
       ...config,
 
