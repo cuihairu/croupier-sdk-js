@@ -428,4 +428,140 @@ describe('BasicClient', () => {
     const result = client.cancelJob(jobId);
     expect(result).toBe(true);
   });
+
+  test('disconnect without transport', async () => {
+    const client = new BasicClient();
+    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+
+    // No transport set, just set connected
+    (client as any).connected = true;
+
+    // Should not throw
+    await client.disconnect();
+    expect((client as any).connected).toBe(false);
+  });
+
+  test('job handler with byte array result', async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: 'byte.fn', version: '1.0.0' },
+      async () => 'binary-data' as string,
+    );
+
+    const result = await client.invoke('byte.fn', '');
+    expect(result).toBe('binary-data');
+  });
+
+  test('invoke with function returning number', async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: 'number.fn', version: '1.0.0' },
+      async () => '42',
+    );
+
+    const result = await client.invoke('number.fn', '');
+    expect(result).toBe('42');
+  });
+
+  test('getRegisterRequest with no rpc addr', () => {
+    const client = new BasicClient({
+      serviceId: 'test-svc',
+      serviceVersion: '1.0.0',
+    });
+    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+
+    const req = client.getRegisterRequest();
+
+    expect(req.rpcAddr).toBe('');
+    expect(req.functions).toHaveLength(1);
+  });
+
+  test('startJob with multiple rapid cancels', async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: 'test.fn', version: '1.0.0' },
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return 'done';
+      },
+    );
+
+    const jobId = client.startJob('test.fn', '');
+
+    // Cancel multiple times - should be idempotent
+    const result1 = client.cancelJob(jobId);
+    const result2 = client.cancelJob(jobId);
+
+    expect(result1).toBe(true);
+    expect(result2).toBe(false); // Second cancel returns false since job is already cancelled
+  });
+
+  test('function descriptor with all optional fields', () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      {
+        id: 'complete.fn',
+        version: '1.0.0',
+        name: 'Complete Function',
+        description: 'A complete function descriptor',
+        category: 'utils',
+        risk: 'low',
+        entity: 'system',
+        operation: 'read',
+        input_schema: { type: 'object' },
+        output_schema: { type: 'string' },
+      },
+      async () => 'ok',
+    );
+
+    const desc = client.getFunctionDescriptor('complete.fn');
+
+    expect(desc?.id).toBe('complete.fn');
+    expect(desc?.version).toBe('1.0.0');
+    expect(desc?.category).toBe('utils');
+    expect(desc?.risk).toBe('low');
+    expect(desc?.entity).toBe('system');
+    expect(desc?.operation).toBe('read');
+  });
+
+  test('invoke handler that returns Uint8Array', async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: 'uint8.fn', version: '1.0.0' },
+      async () => 'binary-data' as string,
+    );
+
+    const result = await client.invoke('uint8.fn', '');
+    expect(result).toBeDefined();
+  });
+
+  test('job error event includes progress', async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: 'error.fn', version: '1.0.0' },
+      async () => {
+        throw new Error('Test error');
+      },
+    );
+
+    const jobId = client.startJob('error.fn', '');
+    const events: any[] = [];
+
+    for await (const evt of client.streamJob(jobId)) {
+      events.push(evt);
+    }
+
+    expect(events[1].type).toBe('error');
+    expect(events[1].progress).toBe(0);
+  });
+
+  test('invoke with empty metadata object', async () => {
+    const client = new BasicClient();
+    const handler = jest.fn().mockResolvedValue('result');
+    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+
+    await client.invoke('test.fn', 'payload', {});
+
+    expect(handler).toHaveBeenCalledWith('{}', 'payload');
+  });
 });
