@@ -19,6 +19,172 @@ import {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+/**
+ * Configuration for retrying failed invocations with exponential backoff.
+ *
+ * When enabled, the client will automatically retry failed invocations
+ * using an exponential backoff strategy with jitter to prevent thundering
+ * herd problems.
+ *
+ * @example
+ * ```typescript
+ * const retryConfig: RetryConfig = {
+ *   enabled: true,
+ *   maxAttempts: 3,
+ *   initialDelayMs: 100,
+ *   maxDelayMs: 5000,
+ *   backoffMultiplier: 2.0,
+ *   jitterFactor: 0.1,
+ *   retryableStatusCodes: [14, 13, 2, 10, 4]
+ * };
+ * ```
+ */
+export interface RetryConfig {
+  /**
+   * Whether retry is enabled.
+   * @default true
+   */
+  enabled?: boolean;
+
+  /**
+   * Maximum number of retry attempts.
+   * @default 3
+   */
+  maxAttempts?: number;
+
+  /**
+   * Initial retry delay in milliseconds.
+   * @default 100
+   */
+  initialDelayMs?: number;
+
+  /**
+   * Maximum retry delay in milliseconds.
+   * @default 5000
+   */
+  maxDelayMs?: number;
+
+  /**
+   * Backoff multiplier for exponential backoff.
+   * @default 2.0
+   */
+  backoffMultiplier?: number;
+
+  /**
+   * Jitter factor (0-1) for adding randomness to delays.
+   * @default 0.1
+   */
+  jitterFactor?: number;
+
+  /**
+   * List of status codes that should trigger a retry.
+   * Default codes: UNAVAILABLE(14), INTERNAL(13), UNKNOWN(2), ABORTED(10), DEADLINE_EXCEEDED(4)
+   */
+  retryableStatusCodes?: number[];
+}
+
+/**
+ * Configuration for automatic reconnection with exponential backoff.
+ *
+ * When enabled, the client will automatically attempt to reconnect
+ * after connection failures using an exponential backoff strategy with
+ * jitter to prevent thundering herd problems.
+ *
+ * @example
+ * ```typescript
+ * const reconnectConfig: ReconnectConfig = {
+ *   enabled: true,
+ *   maxAttempts: 0,  // Infinite retries
+ *   initialDelayMs: 1000,  // 1 second
+ *   maxDelayMs: 30000,  // 30 seconds
+ *   backoffMultiplier: 2.0,
+ *   jitterFactor: 0.2
+ * };
+ * ```
+ */
+export interface ReconnectConfig {
+  /**
+   * Whether automatic reconnection is enabled.
+   * @default true
+   */
+  enabled?: boolean;
+
+  /**
+   * Maximum number of reconnection attempts (0 = infinite retries).
+   * @default 0
+   */
+  maxAttempts?: number;
+
+  /**
+   * Initial reconnection delay in milliseconds.
+   * @default 1000
+   */
+  initialDelayMs?: number;
+
+  /**
+   * Maximum reconnection delay in milliseconds.
+   * @default 30000
+   */
+  maxDelayMs?: number;
+
+  /**
+   * Backoff multiplier for exponential backoff.
+   * @default 2.0
+   */
+  backoffMultiplier?: number;
+
+  /**
+   * Jitter factor (0-1) for adding randomness to delays.
+   * @default 0.2
+   */
+  jitterFactor?: number;
+}
+
+/**
+ * Options for invoking a function.
+ *
+ * @example
+ * ```typescript
+ * const options: InvokeOptions = {
+ *   idempotencyKey: 'unique-key-123',
+ *   timeout: 5000,
+ *   headers: {
+ *     'X-Request-ID': 'req-456',
+ *     'X-Game-ID': 'my-game'
+ *   },
+ *   retry: {
+ *     maxAttempts: 3
+ *   }
+ * };
+ * ```
+ */
+export interface InvokeOptions {
+  /**
+   * Unique key for idempotent requests.
+   *
+   * Requests with the same idempotency key will return the same result,
+   * preventing duplicate executions.
+   */
+  idempotencyKey?: string;
+
+  /**
+   * Per-invocation timeout in milliseconds.
+   *
+   * If not specified, uses the client-level timeout.
+   */
+  timeout?: number;
+
+  /**
+   * Retry configuration for the invocation.
+   */
+  retry?: RetryConfig;
+
+  /**
+   * Custom headers/metadata for the invocation.
+   */
+  headers?: Record<string, string>;
+}
+
 export interface FunctionDescriptor {
   id: string;
   version: string;
@@ -37,13 +203,46 @@ export interface FunctionHandler {
 }
 
 export interface ClientConfig {
+  // === Connection ===
   agentAddr?: string;
   timeout?: number;
+
+  // === Service Identity ===
   serviceId?: string;
   serviceVersion?: string;
+
+  // === Game Context ===
+  gameId?: string;
+  env?: string;
+
+  // === Heartbeat ===
   heartbeatIntervalSeconds?: number;
+
+  // === Provider Info ===
   providerLang?: string;
   providerSdk?: string;
+
+  // === TLS Configuration ===
+  insecure?: boolean;
+  certFile?: string;
+  keyFile?: string;
+  caFile?: string;
+
+  // === Authentication ===
+  authToken?: string;
+  headers?: Record<string, string>;
+
+  // === Reconnection ===
+  autoReconnect?: boolean;
+  reconnectInterval?: number;
+  reconnect?: ReconnectConfig;
+
+  // === Retry ===
+  retry?: RetryConfig;
+
+  // === File Transfer ===
+  enableFileTransfer?: boolean;
+  maxFileSize?: number;
 }
 
 interface LocalFunctionDescriptor {
@@ -115,10 +314,12 @@ export interface CroupierClient {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void;
-  invoke(functionId: string, payload: string, metadata?: Record<string, string>): Promise<string>;
-  startJob(functionId: string, payload: string, metadata?: Record<string, string>): string;
+  invoke(functionId: string, payload: string, optionsOrMetadata?: InvokeOptions | Record<string, string>): Promise<string>;
+  startJob(functionId: string, payload: string, optionsOrMetadata?: InvokeOptions | Record<string, string>): string;
   streamJob(jobId: string): AsyncIterable<JobEvent>;
   cancelJob(jobId: string): boolean;
+  serve(): Promise<void>;
+  serveAsync(): Promise<void>;
 }
 
 export class BasicClient implements CroupierClient {
@@ -131,14 +332,66 @@ export class BasicClient implements CroupierClient {
 
   constructor(config: ClientConfig = {}) {
     this.config = {
+      // Connection
       agentAddr: 'tcp://127.0.0.1:19090',
       timeout: 30000,
+
+      // Service Identity
       serviceId: `node-sdk-${randomUUID()}`,
       serviceVersion: '1.0.0',
+
+      // Game Context
+      gameId: '',
+      env: 'production',
+
+      // Heartbeat
       heartbeatIntervalSeconds: 60,
+
+      // Provider Info
       providerLang: 'node',
       providerSdk: 'croupier-js-sdk',
+
+      // TLS (defaults: secure TLS)
+      insecure: false,
+      certFile: '',
+      keyFile: '',
+      caFile: '',
+
+      // Authentication
+      authToken: '',
+      headers: {},
+
+      // Reconnection
+      autoReconnect: true,
+      reconnectInterval: 5000,
+
+      // Retry
+      // File Transfer
+      enableFileTransfer: false,
+      maxFileSize: 10485760, // 10 MB default
+
       ...config,
+
+      // Deep merge for nested objects
+      reconnect: {
+        enabled: true,
+        maxAttempts: 0,
+        initialDelayMs: 1000,
+        maxDelayMs: 30000,
+        backoffMultiplier: 2.0,
+        jitterFactor: 0.2,
+        ...config.reconnect,
+      },
+      retry: {
+        enabled: true,
+        maxAttempts: 3,
+        initialDelayMs: 100,
+        maxDelayMs: 5000,
+        backoffMultiplier: 2.0,
+        jitterFactor: 0.1,
+        retryableStatusCodes: [14, 13, 2, 10, 4],
+        ...config.retry,
+      },
     };
   }
 
@@ -161,6 +414,51 @@ export class BasicClient implements CroupierClient {
       this.transport = null;
     }
     this.connected = false;
+  }
+
+  async serve(): Promise<void> {
+    // Connect if not already connected
+    if (!this.connected) {
+      await this.connect();
+    }
+
+    // Keep serving indefinitely
+    return new Promise<void>((resolve, reject) => {
+      // Handle graceful shutdown
+      const cleanup = () => {
+        this.disconnect().catch((err) => {
+          console.error('Error during disconnect:', err);
+        });
+      };
+
+      // Setup process handlers for graceful shutdown
+      if (process.listenerCount('SIGINT') === 0) {
+        process.once('SIGINT', () => {
+          console.log('\nReceived SIGINT, shutting down gracefully...');
+          cleanup();
+          resolve();
+        });
+      }
+
+      if (process.listenerCount('SIGTERM') === 0) {
+        process.once('SIGTERM', () => {
+          console.log('Received SIGTERM, shutting down gracefully...');
+          cleanup();
+          resolve();
+        });
+      }
+
+      // Log that we're serving
+      console.log(`Croupier client serving at ${this.config.agentAddr}`);
+      console.log(`Service: ${this.config.serviceId} @ ${this.config.serviceVersion}`);
+      console.log(`Registered functions: ${this.handlers.size}`);
+      console.log('Press Ctrl+C to stop...');
+    });
+  }
+
+  async serveAsync(): Promise<void> {
+    // Same as serve(), but with explicit async documentation
+    return this.serve();
   }
 
   registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void {
@@ -194,6 +492,24 @@ export class BasicClient implements CroupierClient {
       serviceId: this.config.serviceId,
       version: this.config.serviceVersion,
       rpcAddr,
+      // Game context
+      gameId: this.config.gameId || undefined,
+      env: this.config.env,
+      // TLS configuration
+      insecure: this.config.insecure,
+      certFile: this.config.certFile || undefined,
+      keyFile: this.config.keyFile || undefined,
+      caFile: this.config.caFile || undefined,
+      // Authentication
+      authToken: this.config.authToken || undefined,
+      headers: Object.keys(this.config.headers).length > 0 ? this.config.headers : undefined,
+      // Reconnection
+      autoReconnect: this.config.autoReconnect,
+      reconnectInterval: this.config.reconnectInterval,
+      // File transfer
+      enableFileTransfer: this.config.enableFileTransfer,
+      maxFileSize: this.config.maxFileSize,
+      // Functions
       functions: Array.from(this.descriptors.values()).map((desc) => ({
         id: desc.id,
         version: desc.version,
@@ -208,12 +524,31 @@ export class BasicClient implements CroupierClient {
   async invoke(
     functionId: string,
     payload: string,
-    metadata: Record<string, string> = {}
+    optionsOrMetadata: InvokeOptions | Record<string, string> = {}
   ): Promise<string> {
     const handler = this.handlers.get(functionId);
     if (!handler) {
       throw new Error(`Function ${functionId} not found`);
     }
+
+    // Normalize options to InvokeOptions
+    let options: InvokeOptions;
+    if (this.isInvokeOptions(optionsOrMetadata)) {
+      options = optionsOrMetadata;
+    } else {
+      options = { headers: optionsOrMetadata };
+    }
+
+    // Merge with client-level retry config
+    const retryConfig = {
+      ...this.config.retry,
+      ...options.retry,
+    };
+
+    // Use per-invocation timeout if specified, otherwise use client-level timeout
+    const timeout = options.timeout ?? this.config.timeout;
+
+    const metadata = options.headers || {};
 
     // If transport is connected, use remote invocation
     if (this.connected && this.transport) {
@@ -222,6 +557,9 @@ export class BasicClient implements CroupierClient {
           function_id: functionId,
           payload: encoder.encode(payload),
           metadata,
+          idempotency_key: options.idempotencyKey,
+          timeout,
+          retry_config: retryConfig,
         })
       );
       const [, responseData] = this.transport.call(MSG_INVOKE_REQUEST, requestData);
@@ -229,7 +567,12 @@ export class BasicClient implements CroupierClient {
     }
 
     // Local invocation
-    const context = JSON.stringify(metadata);
+    const context = JSON.stringify({
+      ...metadata,
+      ...(options.idempotencyKey && { idempotency_key: options.idempotencyKey }),
+      timeout,
+    });
+
     const result = await handler(context, payload);
     return result;
   }
@@ -237,12 +580,31 @@ export class BasicClient implements CroupierClient {
   startJob(
     functionId: string,
     payload: string,
-    metadata: Record<string, string> = {}
+    optionsOrMetadata: InvokeOptions | Record<string, string> = {}
   ): string {
     const handler = this.handlers.get(functionId);
     if (!handler) {
       throw new Error(`Function ${functionId} not found`);
     }
+
+    // Normalize options to InvokeOptions
+    let options: InvokeOptions;
+    if (this.isInvokeOptions(optionsOrMetadata)) {
+      options = optionsOrMetadata;
+    } else {
+      options = { headers: optionsOrMetadata };
+    }
+
+    // Merge with client-level retry config
+    const retryConfig = {
+      ...this.config.retry,
+      ...options.retry,
+    };
+
+    // Use per-invocation timeout if specified, otherwise use client-level timeout
+    const timeout = options.timeout ?? this.config.timeout;
+
+    const metadata = options.headers || {};
 
     const jobId = `${functionId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const state = new JobState();
@@ -255,7 +617,11 @@ export class BasicClient implements CroupierClient {
       payload: new Uint8Array(),
     });
 
-    const context = JSON.stringify(metadata);
+    const context = JSON.stringify({
+      ...metadata,
+      ...(options.idempotencyKey && { idempotency_key: options.idempotencyKey }),
+      timeout,
+    });
 
     setImmediate(async () => {
       try {
@@ -312,6 +678,20 @@ export class BasicClient implements CroupierClient {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Type guard to check if an object is InvokeOptions.
+   *
+   * Checks for presence of InvokeOptions-specific fields (retry, idempotencyKey, timeout)
+   * that would not typically be in a simple metadata object.
+   */
+  private isInvokeOptions(obj: InvokeOptions | Record<string, string>): obj is InvokeOptions {
+    if (!obj || typeof obj !== 'object') {
+      return false;
+    }
+    // Check if any InvokeOptions-specific field is present
+    return 'retry' in obj || 'idempotencyKey' in obj || 'timeout' in obj;
   }
 
   buildManifest() {
