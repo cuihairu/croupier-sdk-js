@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: pnpm/action-setup@v4
@@ -41,3 +41,4 @@ jobs:
           prerelease: true
           files: artifacts/*
           fail_on_unmatched_files: true
+

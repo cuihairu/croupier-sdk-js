@@ -12,7 +12,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: pnpm/action-setup@v4
@@ -32,3 +32,4 @@ jobs:
           files: coverage/lcov.info
           flags: js-sdk
           fail_ci_if_error: ${{ github.event_name != 'pull_request' }}
+
