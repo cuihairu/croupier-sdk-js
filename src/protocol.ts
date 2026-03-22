@@ -122,14 +122,18 @@ export function parseMessage(data: Buffer): ParsedMessage {
  * Check if the MsgID indicates a request message.
  */
 export function isRequest(msgId: number): boolean {
-  return msgId % 2 === 1 && msgId !== MSG_JOB_EVENT && msgId !== MSG_METRIC_EVENT;
+  return (
+    msgId % 2 === 1 && msgId !== MSG_JOB_EVENT && msgId !== MSG_METRIC_EVENT
+  );
 }
 
 /**
  * Check if the MsgID indicates a response message.
  */
 export function isResponse(msgId: number): boolean {
-  return msgId % 2 === 0 && msgId !== MSG_JOB_EVENT && msgId !== MSG_METRIC_EVENT;
+  return (
+    msgId % 2 === 0 && msgId !== MSG_JOB_EVENT && msgId !== MSG_METRIC_EVENT
+  );
 }
 
 /**
@@ -144,24 +148,24 @@ export function getResponseMsgId(reqMsgId: number): number {
  */
 export function msgIdString(msgId: number): string {
   const names: Record<number, string> = {
-    [MSG_REGISTER_REQUEST]: 'RegisterRequest',
-    [MSG_REGISTER_RESPONSE]: 'RegisterResponse',
-    [MSG_HEARTBEAT_REQUEST]: 'HeartbeatRequest',
-    [MSG_HEARTBEAT_RESPONSE]: 'HeartbeatResponse',
-    [MSG_INVOKE_REQUEST]: 'InvokeRequest',
-    [MSG_INVOKE_RESPONSE]: 'InvokeResponse',
-    [MSG_START_JOB_REQUEST]: 'StartJobRequest',
-    [MSG_START_JOB_RESPONSE]: 'StartJobResponse',
-    [MSG_STREAM_JOB_REQUEST]: 'StreamJobRequest',
-    [MSG_JOB_EVENT]: 'JobEvent',
-    [MSG_CANCEL_JOB_REQUEST]: 'CancelJobRequest',
-    [MSG_CANCEL_JOB_RESPONSE]: 'CancelJobResponse',
-    [MSG_REGISTER_LOCAL_REQUEST]: 'RegisterLocalRequest',
-    [MSG_REGISTER_LOCAL_RESPONSE]: 'RegisterLocalResponse',
-    [MSG_HEARTBEAT_LOCAL_REQUEST]: 'HeartbeatLocalRequest',
-    [MSG_HEARTBEAT_LOCAL_RESPONSE]: 'HeartbeatLocalResponse',
-    [MSG_LIST_LOCAL_REQUEST]: 'ListLocalRequest',
-    [MSG_LIST_LOCAL_RESPONSE]: 'ListLocalResponse',
+    [MSG_REGISTER_REQUEST]: "RegisterRequest",
+    [MSG_REGISTER_RESPONSE]: "RegisterResponse",
+    [MSG_HEARTBEAT_REQUEST]: "HeartbeatRequest",
+    [MSG_HEARTBEAT_RESPONSE]: "HeartbeatResponse",
+    [MSG_INVOKE_REQUEST]: "InvokeRequest",
+    [MSG_INVOKE_RESPONSE]: "InvokeResponse",
+    [MSG_START_JOB_REQUEST]: "StartJobRequest",
+    [MSG_START_JOB_RESPONSE]: "StartJobResponse",
+    [MSG_STREAM_JOB_REQUEST]: "StreamJobRequest",
+    [MSG_JOB_EVENT]: "JobEvent",
+    [MSG_CANCEL_JOB_REQUEST]: "CancelJobRequest",
+    [MSG_CANCEL_JOB_RESPONSE]: "CancelJobResponse",
+    [MSG_REGISTER_LOCAL_REQUEST]: "RegisterLocalRequest",
+    [MSG_REGISTER_LOCAL_RESPONSE]: "RegisterLocalResponse",
+    [MSG_HEARTBEAT_LOCAL_REQUEST]: "HeartbeatLocalRequest",
+    [MSG_HEARTBEAT_LOCAL_RESPONSE]: "HeartbeatLocalResponse",
+    [MSG_LIST_LOCAL_REQUEST]: "ListLocalRequest",
+    [MSG_LIST_LOCAL_RESPONSE]: "ListLocalResponse",
   };
-  return names[msgId] || `Unknown(0x${msgId.toString(16).padStart(6, '0')})`;
+  return names[msgId] || `Unknown(0x${msgId.toString(16).padStart(6, "0")})`;
 }

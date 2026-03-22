@@ -13,7 +13,7 @@ JavaScript 是单线程的，但调度器在以下场景仍然有用：
 ## 基本用法
 
 ```typescript
-import { MainThreadDispatcher, getDispatcher } from 'croupier-js-sdk/threading';
+import { MainThreadDispatcher, getDispatcher } from "croupier-js-sdk/threading";
 
 // 初始化
 const dispatcher = getDispatcher();
@@ -27,9 +27,9 @@ dispatcher.enqueueDeferred(() => processResponse(data));
 
 // 主循环中处理队列
 function mainLoop() {
-    dispatcher.processQueue();
-    // ... 业务逻辑
-    setImmediate(mainLoop);
+  dispatcher.processQueue();
+  // ... 业务逻辑
+  setImmediate(mainLoop);
 }
 ```
 
@@ -48,7 +48,7 @@ const dispatcher = MainThreadDispatcher.getInstance();
 便捷函数，获取单例实例。
 
 ```typescript
-import { getDispatcher } from 'croupier-js-sdk/threading';
+import { getDispatcher } from "croupier-js-sdk/threading";
 
 const dispatcher = getDispatcher();
 ```
@@ -67,7 +67,7 @@ dispatcher.initialize();
 
 ```typescript
 if (dispatcher.isInitialized()) {
-    // 已初始化
+  // 已初始化
 }
 ```
 
@@ -76,15 +76,16 @@ if (dispatcher.isInitialized()) {
 将回调加入队列。
 
 **参数:**
+
 - `callback` - 要执行的回调函数
 - `executeImmediatelyIfInitialized` - 如果为 true（默认），已初始化时立即执行
 
 ```typescript
 // 立即执行（默认）
-dispatcher.enqueue(() => console.log('立即执行'));
+dispatcher.enqueue(() => console.log("立即执行"));
 
 // 加入队列
-dispatcher.enqueue(() => console.log('延迟执行'), false);
+dispatcher.enqueue(() => console.log("延迟执行"), false);
 ```
 
 ### `enqueueDeferred(callback)`
@@ -92,7 +93,7 @@ dispatcher.enqueue(() => console.log('延迟执行'), false);
 将回调加入队列，永不立即执行。
 
 ```typescript
-dispatcher.enqueueDeferred(() => console.log('延迟执行'));
+dispatcher.enqueueDeferred(() => console.log("延迟执行"));
 ```
 
 ### `enqueueWithData<T>(callback, data)`
@@ -101,8 +102,8 @@ dispatcher.enqueueDeferred(() => console.log('延迟执行'));
 
 ```typescript
 dispatcher.enqueueWithData<string>((msg) => {
-    console.log(msg);
-}, 'Hello');
+  console.log(msg);
+}, "Hello");
 ```
 
 ### `processQueue()`
@@ -135,7 +136,7 @@ const count = dispatcher.getPendingCount();
 
 ```typescript
 if (dispatcher.isMainThread()) {
-    // 已初始化
+  // 已初始化
 }
 ```
 
@@ -158,10 +159,10 @@ dispatcher.clear();
 ## 便捷函数
 
 ```typescript
-import { enqueue, processQueue } from 'croupier-js-sdk/threading';
+import { enqueue, processQueue } from "croupier-js-sdk/threading";
 
 // 入队回调
-enqueue(() => console.log('Hello'));
+enqueue(() => console.log("Hello"));
 
 // 处理队列
 const count = processQueue();
@@ -172,25 +173,25 @@ const count = processQueue();
 ### 基础 Node.js 服务器
 
 ```typescript
-import { getDispatcher } from 'croupier-js-sdk/threading';
+import { getDispatcher } from "croupier-js-sdk/threading";
 
 const dispatcher = getDispatcher();
 dispatcher.initialize();
 
 let running = true;
 
-process.on('SIGINT', () => {
-    running = false;
+process.on("SIGINT", () => {
+  running = false;
 });
 
 // 主循环
 function mainLoop() {
-    if (!running) return;
+  if (!running) return;
 
-    dispatcher.processQueue();
-    // ... 业务逻辑
+  dispatcher.processQueue();
+  // ... 业务逻辑
 
-    setImmediate(mainLoop);
+  setImmediate(mainLoop);
 }
 
 mainLoop();
@@ -199,14 +200,14 @@ mainLoop();
 ### 定时器模式
 
 ```typescript
-import { getDispatcher } from 'croupier-js-sdk/threading';
+import { getDispatcher } from "croupier-js-sdk/threading";
 
 const dispatcher = getDispatcher();
 dispatcher.initialize();
 
 // 每帧处理
 setInterval(() => {
-    dispatcher.processQueue();
+  dispatcher.processQueue();
 }, 16); // ~60fps
 ```
 
@@ -215,19 +216,19 @@ setInterval(() => {
 ```typescript
 // gRPC 回调中
 function onResponse(response: Response) {
-    const dispatcher = getDispatcher();
+  const dispatcher = getDispatcher();
 
-    // 使用 enqueueDeferred 确保在主循环中处理
-    dispatcher.enqueueDeferred(() => {
-        handleResponse(response);
-    });
+  // 使用 enqueueDeferred 确保在主循环中处理
+  dispatcher.enqueueDeferred(() => {
+    handleResponse(response);
+  });
 }
 ```
 
 ### 批量处理模式
 
 ```typescript
-import { getDispatcher } from 'croupier-js-sdk/threading';
+import { getDispatcher } from "croupier-js-sdk/threading";
 
 const dispatcher = getDispatcher();
 dispatcher.initialize();
@@ -235,15 +236,15 @@ dispatcher.setMaxProcessPerFrame(100); // 每帧最多处理 100 个
 
 // 大量回调入队
 for (let i = 0; i < 1000; i++) {
-    dispatcher.enqueueDeferred(() => processItem(i));
+  dispatcher.enqueueDeferred(() => processItem(i));
 }
 
 // 分批处理，避免阻塞
 function processInBatches() {
-    const processed = dispatcher.processQueue();
-    if (dispatcher.getPendingCount() > 0) {
-        setImmediate(processInBatches);
-    }
+  const processed = dispatcher.processQueue();
+  if (dispatcher.getPendingCount() > 0) {
+    setImmediate(processInBatches);
+  }
 }
 
 processInBatches();

@@ -20,10 +20,10 @@ import {
   newMessage,
   parseMessage,
   putMsgID,
-} from './protocol';
+} from "./protocol";
 
 // Mock the @rustup/nng module
-jest.mock('@rustup/nng', () => {
+jest.mock("@rustup/nng", () => {
   let mockHandler: ((data: Buffer) => Buffer) | null = null;
 
   class MockSocket {
@@ -40,7 +40,7 @@ jest.mock('@rustup/nng', () => {
 
     send(data: Buffer): Buffer {
       if (!this.socketConnected) {
-        throw new Error('Socket not connected');
+        throw new Error("Socket not connected");
       }
       // Echo back for testing
       if (mockHandler) {
@@ -73,7 +73,7 @@ jest.mock('@rustup/nng', () => {
     static recvMessage(
       address: string,
       options: any,
-      handler: (data: Buffer) => Buffer
+      handler: (data: Buffer) => Buffer,
     ) {
       mockHandler = handler;
       return {
@@ -87,15 +87,15 @@ jest.mock('@rustup/nng', () => {
   };
 });
 
-import { NNGTransport, NNGServer } from './transport';
-import { Socket } from '@rustup/nng';
+import { NNGTransport, NNGServer } from "./transport";
+import { Socket } from "@rustup/nng";
 
-describe('Protocol', () => {
-  describe('newMessage', () => {
-    it('should create a message with correct header', () => {
+describe("Protocol", () => {
+  describe("newMessage", () => {
+    it("should create a message with correct header", () => {
       const msgType = MSG_INVOKE_REQUEST;
       const reqId = 12345;
-      const body = Buffer.from('test payload');
+      const body = Buffer.from("test payload");
 
       const message = newMessage(msgType, reqId, body);
 
@@ -103,7 +103,7 @@ describe('Protocol', () => {
       expect(message[0]).toBe(0x01); // Version
     });
 
-    it('should create a message with empty body', () => {
+    it("should create a message with empty body", () => {
       const msgType = MSG_REGISTER_LOCAL_REQUEST;
       const reqId = 1;
       const body = Buffer.alloc(0);
@@ -114,10 +114,10 @@ describe('Protocol', () => {
       expect(message[0]).toBe(0x01);
     });
 
-    it('should handle large request ID', () => {
+    it("should handle large request ID", () => {
       const msgType = MSG_INVOKE_REQUEST;
-      const reqId = 0xFFFFFFFF; // Max uint32
-      const body = Buffer.from('test');
+      const reqId = 0xffffffff; // Max uint32
+      const body = Buffer.from("test");
 
       const message = newMessage(msgType, reqId, body);
       const parsed = parseMessage(message);
@@ -126,11 +126,11 @@ describe('Protocol', () => {
     });
   });
 
-  describe('parseMessage', () => {
-    it('should parse a message correctly', () => {
+  describe("parseMessage", () => {
+    it("should parse a message correctly", () => {
       const msgType = MSG_REGISTER_LOCAL_REQUEST;
       const reqId = 999;
-      const body = Buffer.from('hello world');
+      const body = Buffer.from("hello world");
 
       const message = newMessage(msgType, reqId, body);
       const parsed = parseMessage(message);
@@ -141,7 +141,7 @@ describe('Protocol', () => {
       expect(parsed.body.toString()).toBe(body.toString());
     });
 
-    it('should parse message with empty body', () => {
+    it("should parse message with empty body", () => {
       const msgType = MSG_INVOKE_REQUEST;
       const reqId = 123;
       const body = Buffer.alloc(0);
@@ -153,17 +153,23 @@ describe('Protocol', () => {
     });
   });
 
-  describe('getResponseMsgId', () => {
-    it('should return correct response message ID', () => {
+  describe("getResponseMsgId", () => {
+    it("should return correct response message ID", () => {
       expect(getResponseMsgId(MSG_INVOKE_REQUEST)).toBe(MSG_INVOKE_RESPONSE);
-      expect(getResponseMsgId(MSG_REGISTER_LOCAL_REQUEST)).toBe(MSG_REGISTER_LOCAL_RESPONSE);
-      expect(getResponseMsgId(MSG_START_JOB_REQUEST)).toBe(MSG_START_JOB_RESPONSE);
-      expect(getResponseMsgId(MSG_CANCEL_JOB_REQUEST)).toBe(MSG_CANCEL_JOB_RESPONSE);
+      expect(getResponseMsgId(MSG_REGISTER_LOCAL_REQUEST)).toBe(
+        MSG_REGISTER_LOCAL_RESPONSE,
+      );
+      expect(getResponseMsgId(MSG_START_JOB_REQUEST)).toBe(
+        MSG_START_JOB_RESPONSE,
+      );
+      expect(getResponseMsgId(MSG_CANCEL_JOB_REQUEST)).toBe(
+        MSG_CANCEL_JOB_RESPONSE,
+      );
     });
   });
 
-  describe('isRequest', () => {
-    it('should identify request messages', () => {
+  describe("isRequest", () => {
+    it("should identify request messages", () => {
       expect(isRequest(MSG_INVOKE_REQUEST)).toBe(true);
       expect(isRequest(MSG_REGISTER_LOCAL_REQUEST)).toBe(true);
       expect(isRequest(MSG_START_JOB_REQUEST)).toBe(true);
@@ -173,8 +179,8 @@ describe('Protocol', () => {
     });
   });
 
-  describe('isResponse', () => {
-    it('should identify response messages', () => {
+  describe("isResponse", () => {
+    it("should identify response messages", () => {
       expect(isResponse(MSG_INVOKE_RESPONSE)).toBe(true);
       expect(isResponse(MSG_REGISTER_LOCAL_RESPONSE)).toBe(true);
       expect(isResponse(MSG_START_JOB_RESPONSE)).toBe(true);
@@ -184,21 +190,23 @@ describe('Protocol', () => {
     });
   });
 
-  describe('msgIdString', () => {
-    it('should return human-readable message ID string', () => {
-      expect(msgIdString(MSG_INVOKE_REQUEST)).toBe('InvokeRequest');
-      expect(msgIdString(MSG_INVOKE_RESPONSE)).toBe('InvokeResponse');
-      expect(msgIdString(MSG_REGISTER_LOCAL_REQUEST)).toBe('RegisterLocalRequest');
-      expect(msgIdString(MSG_START_JOB_REQUEST)).toBe('StartJobRequest');
-      expect(msgIdString(MSG_START_JOB_RESPONSE)).toBe('StartJobResponse');
-      expect(msgIdString(MSG_CANCEL_JOB_REQUEST)).toBe('CancelJobRequest');
-      expect(msgIdString(MSG_CANCEL_JOB_RESPONSE)).toBe('CancelJobResponse');
-      expect(msgIdString(0xffffff)).toBe('Unknown(0xffffff)');
+  describe("msgIdString", () => {
+    it("should return human-readable message ID string", () => {
+      expect(msgIdString(MSG_INVOKE_REQUEST)).toBe("InvokeRequest");
+      expect(msgIdString(MSG_INVOKE_RESPONSE)).toBe("InvokeResponse");
+      expect(msgIdString(MSG_REGISTER_LOCAL_REQUEST)).toBe(
+        "RegisterLocalRequest",
+      );
+      expect(msgIdString(MSG_START_JOB_REQUEST)).toBe("StartJobRequest");
+      expect(msgIdString(MSG_START_JOB_RESPONSE)).toBe("StartJobResponse");
+      expect(msgIdString(MSG_CANCEL_JOB_REQUEST)).toBe("CancelJobRequest");
+      expect(msgIdString(MSG_CANCEL_JOB_RESPONSE)).toBe("CancelJobResponse");
+      expect(msgIdString(0xffffff)).toBe("Unknown(0xffffff)");
     });
   });
 
-  describe('putMsgID and getMsgID', () => {
-    it('should encode and decode message ID correctly', () => {
+  describe("putMsgID and getMsgID", () => {
+    it("should encode and decode message ID correctly", () => {
       const msgId = 0x030101;
       const encoded = putMsgID(msgId);
       const decoded = getMsgID(encoded);
@@ -206,15 +214,15 @@ describe('Protocol', () => {
       expect(decoded).toBe(msgId);
     });
 
-    it('should handle max message ID', () => {
-      const msgId = 0xFFFFFF;
+    it("should handle max message ID", () => {
+      const msgId = 0xffffff;
       const encoded = putMsgID(msgId);
       const decoded = getMsgID(encoded);
 
       expect(decoded).toBe(msgId);
     });
 
-    it('should handle min message ID', () => {
+    it("should handle min message ID", () => {
       const msgId = 0x000000;
       const encoded = putMsgID(msgId);
       const decoded = getMsgID(encoded);
@@ -223,18 +231,18 @@ describe('Protocol', () => {
     });
   });
 
-  describe('HEADER_SIZE', () => {
-    it('should be 8 bytes', () => {
+  describe("HEADER_SIZE", () => {
+    it("should be 8 bytes", () => {
       expect(HEADER_SIZE).toBe(8);
     });
   });
 });
 
-describe('NNGTransport', () => {
+describe("NNGTransport", () => {
   let transport: NNGTransport;
 
   beforeEach(() => {
-    transport = new NNGTransport('tcp://127.0.0.1:19090', 30000);
+    transport = new NNGTransport("tcp://127.0.0.1:19090", 30000);
   });
 
   afterEach(() => {
@@ -250,41 +258,41 @@ describe('NNGTransport', () => {
     }
   });
 
-  describe('constructor', () => {
-    it('should initialize with default address and timeout', () => {
+  describe("constructor", () => {
+    it("should initialize with default address and timeout", () => {
       const defaultTransport = new NNGTransport();
       // @ts-ignore - accessing private property
-      expect(defaultTransport.address).toBe('tcp://127.0.0.1:19090');
+      expect(defaultTransport.address).toBe("tcp://127.0.0.1:19090");
       // @ts-ignore - accessing private property
       expect(defaultTransport.timeoutMs).toBe(30000);
     });
 
-    it('should initialize with custom address and timeout', () => {
-      const customTransport = new NNGTransport('tcp://192.168.1.1:9999', 5000);
+    it("should initialize with custom address and timeout", () => {
+      const customTransport = new NNGTransport("tcp://192.168.1.1:9999", 5000);
       // @ts-ignore - accessing private property
-      expect(customTransport.address).toBe('tcp://192.168.1.1:9999');
+      expect(customTransport.address).toBe("tcp://192.168.1.1:9999");
       // @ts-ignore - accessing private property
       expect(customTransport.timeoutMs).toBe(5000);
     });
 
-    it('should start in disconnected state', () => {
+    it("should start in disconnected state", () => {
       expect(transport.isConnected()).toBe(false);
     });
   });
 
-  describe('connect', () => {
-    it('should connect successfully', () => {
+  describe("connect", () => {
+    it("should connect successfully", () => {
       transport.connect();
       expect(transport.isConnected()).toBe(true);
     });
 
-    it('should be idempotent - multiple calls are safe', () => {
+    it("should be idempotent - multiple calls are safe", () => {
       transport.connect();
       transport.connect(); // Should not throw
       expect(transport.isConnected()).toBe(true);
     });
 
-    it('should create socket with correct options', () => {
+    it("should create socket with correct options", () => {
       transport.connect();
       // @ts-ignore - accessing private property
       expect(transport.socket).toBeDefined();
@@ -293,25 +301,25 @@ describe('NNGTransport', () => {
     });
   });
 
-  describe('close', () => {
-    it('should close connection', () => {
+  describe("close", () => {
+    it("should close connection", () => {
       transport.connect();
       transport.close();
       expect(transport.isConnected()).toBe(false);
     });
 
-    it('should be safe to call when not connected', () => {
+    it("should be safe to call when not connected", () => {
       expect(() => transport.close()).not.toThrow();
     });
 
-    it('should be idempotent - multiple calls are safe', () => {
+    it("should be idempotent - multiple calls are safe", () => {
       transport.connect();
       transport.close();
       transport.close(); // Should not throw
       expect(transport.isConnected()).toBe(false);
     });
 
-    it('should set socket to null after closing', () => {
+    it("should set socket to null after closing", () => {
       transport.connect();
       transport.close();
       // @ts-ignore - accessing private property
@@ -319,47 +327,50 @@ describe('NNGTransport', () => {
     });
   });
 
-  describe('isConnected', () => {
-    it('should return false when not connected', () => {
+  describe("isConnected", () => {
+    it("should return false when not connected", () => {
       expect(transport.isConnected()).toBe(false);
     });
 
-    it('should return true when connected', () => {
+    it("should return true when connected", () => {
       transport.connect();
       expect(transport.isConnected()).toBe(true);
     });
 
-    it('should return false after closing', () => {
+    it("should return false after closing", () => {
       transport.connect();
       transport.close();
       expect(transport.isConnected()).toBe(false);
     });
   });
 
-  describe('call', () => {
+  describe("call", () => {
     beforeEach(() => {
       transport.connect();
     });
 
-    it('should send request and receive response', () => {
+    it("should send request and receive response", () => {
       const requestMsgType = MSG_INVOKE_REQUEST;
-      const requestData = Buffer.from('test request');
+      const requestData = Buffer.from("test request");
 
-      const [responseMsgType, responseData] = transport.call(requestMsgType, requestData);
+      const [responseMsgType, responseData] = transport.call(
+        requestMsgType,
+        requestData,
+      );
 
       expect(responseMsgType).toBe(getResponseMsgId(requestMsgType));
       expect(responseData).toBeDefined();
     });
 
-    it('should increment request ID on each call', () => {
+    it("should increment request ID on each call", () => {
       // @ts-ignore - accessing private property
       const initialReqId = transport.requestId;
 
-      transport.call(MSG_INVOKE_REQUEST, Buffer.from('first'));
+      transport.call(MSG_INVOKE_REQUEST, Buffer.from("first"));
       // @ts-ignore - accessing private property
       const afterFirstCall = transport.requestId;
 
-      transport.call(MSG_INVOKE_REQUEST, Buffer.from('second'));
+      transport.call(MSG_INVOKE_REQUEST, Buffer.from("second"));
       // @ts-ignore - accessing private property
       const afterSecondCall = transport.requestId;
 
@@ -367,42 +378,45 @@ describe('NNGTransport', () => {
       expect(afterSecondCall).toBeGreaterThan(afterFirstCall);
     });
 
-    it('should wrap request ID at 32-bit boundary', () => {
+    it("should wrap request ID at 32-bit boundary", () => {
       // @ts-ignore - accessing private property
-      transport.requestId = 0xFFFFFFFF;
+      transport.requestId = 0xffffffff;
 
-      transport.call(MSG_INVOKE_REQUEST, Buffer.from('test'));
+      transport.call(MSG_INVOKE_REQUEST, Buffer.from("test"));
 
       // @ts-ignore - accessing private property
       expect(transport.requestId).toBe(0); // Should wrap to 0
     });
 
-    it('should throw when not connected', () => {
+    it("should throw when not connected", () => {
       const disconnectedTransport = new NNGTransport();
       expect(() =>
-        disconnectedTransport.call(MSG_INVOKE_REQUEST, Buffer.from('test'))
-      ).toThrow('Not connected');
+        disconnectedTransport.call(MSG_INVOKE_REQUEST, Buffer.from("test")),
+      ).toThrow("Not connected");
     });
 
-    it('should build correct message with protocol header', () => {
-      const requestData = Buffer.from('test payload');
+    it("should build correct message with protocol header", () => {
+      const requestData = Buffer.from("test payload");
       const [responseMsgType] = transport.call(MSG_INVOKE_REQUEST, requestData);
 
       expect(responseMsgType).toBe(MSG_INVOKE_RESPONSE);
     });
 
-    it('should handle empty request body', () => {
+    it("should handle empty request body", () => {
       const emptyData = Buffer.alloc(0);
-      const [, responseData] = transport.call(MSG_REGISTER_LOCAL_REQUEST, emptyData);
+      const [, responseData] = transport.call(
+        MSG_REGISTER_LOCAL_REQUEST,
+        emptyData,
+      );
 
       expect(responseData).toBeDefined();
     });
 
-    it('should throw on unexpected response type', () => {
+    it("should throw on unexpected response type", () => {
       // This test requires the mock to return an unexpected response type
       // Since our mock echoes back, we need to test differently
       const requestMsgType = MSG_INVOKE_REQUEST;
-      const requestData = Buffer.from('test');
+      const requestData = Buffer.from("test");
 
       // The mock should return the correct response type
       const [responseMsgType] = transport.call(requestMsgType, requestData);
@@ -410,8 +424,8 @@ describe('NNGTransport', () => {
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle rapid connect/disconnect cycles', () => {
+  describe("edge cases", () => {
+    it("should handle rapid connect/disconnect cycles", () => {
       for (let i = 0; i < 10; i++) {
         transport.connect();
         expect(transport.isConnected()).toBe(true);
@@ -420,18 +434,21 @@ describe('NNGTransport', () => {
       }
     });
 
-    it('should handle multiple sequential calls', () => {
+    it("should handle multiple sequential calls", () => {
       transport.connect();
 
       for (let i = 0; i < 100; i++) {
-        const [msgType] = transport.call(MSG_INVOKE_REQUEST, Buffer.from(`call ${i}`));
+        const [msgType] = transport.call(
+          MSG_INVOKE_REQUEST,
+          Buffer.from(`call ${i}`),
+        );
         expect(msgType).toBe(MSG_INVOKE_RESPONSE);
       }
     });
 
-    it('should handle large payload', () => {
+    it("should handle large payload", () => {
       transport.connect();
-      const largePayload = Buffer.alloc(1024 * 1024, 'x'); // 1MB
+      const largePayload = Buffer.alloc(1024 * 1024, "x"); // 1MB
 
       const [, responseData] = transport.call(MSG_INVOKE_REQUEST, largePayload);
       expect(responseData).toBeDefined();
@@ -439,11 +456,11 @@ describe('NNGTransport', () => {
   });
 });
 
-describe('NNGServer', () => {
+describe("NNGServer", () => {
   let server: NNGServer;
 
   beforeEach(() => {
-    server = new NNGServer('tcp://127.0.0.1:19090', 30000);
+    server = new NNGServer("tcp://127.0.0.1:19090", 30000);
   });
 
   afterEach(() => {
@@ -458,45 +475,45 @@ describe('NNGServer', () => {
     }
   });
 
-  describe('constructor', () => {
-    it('should initialize with default address and timeout', () => {
+  describe("constructor", () => {
+    it("should initialize with default address and timeout", () => {
       const defaultServer = new NNGServer();
       // @ts-ignore - accessing private property
-      expect(defaultServer.address).toBe('tcp://127.0.0.1:19090');
+      expect(defaultServer.address).toBe("tcp://127.0.0.1:19090");
       // @ts-ignore - accessing private property
       expect(defaultServer.timeoutMs).toBe(30000);
     });
 
-    it('should initialize with custom address and timeout', () => {
-      const customServer = new NNGServer('tcp://0.0.0.0:8080', 10000);
+    it("should initialize with custom address and timeout", () => {
+      const customServer = new NNGServer("tcp://0.0.0.0:8080", 10000);
       // @ts-ignore - accessing private property
-      expect(customServer.address).toBe('tcp://0.0.0.0:8080');
+      expect(customServer.address).toBe("tcp://0.0.0.0:8080");
       // @ts-ignore - accessing private property
       expect(customServer.timeoutMs).toBe(10000);
     });
 
-    it('should start in not-running state', () => {
+    it("should start in not-running state", () => {
       expect(server.isRunning()).toBe(false);
     });
 
-    it('should have no handler initially', () => {
+    it("should have no handler initially", () => {
       // @ts-ignore - accessing private property
       expect(server.handler).toBeNull();
     });
   });
 
-  describe('setHandler', () => {
-    it('should set the message handler', () => {
-      const handler = jest.fn().mockReturnValue(Buffer.from('response'));
+  describe("setHandler", () => {
+    it("should set the message handler", () => {
+      const handler = jest.fn().mockReturnValue(Buffer.from("response"));
       server.setHandler(handler);
 
       // @ts-ignore - accessing private property
       expect(server.handler).toBe(handler);
     });
 
-    it('should overwrite existing handler', () => {
-      const handler1 = jest.fn().mockReturnValue(Buffer.from('response1'));
-      const handler2 = jest.fn().mockReturnValue(Buffer.from('response2'));
+    it("should overwrite existing handler", () => {
+      const handler1 = jest.fn().mockReturnValue(Buffer.from("response1"));
+      const handler2 = jest.fn().mockReturnValue(Buffer.from("response2"));
 
       server.setHandler(handler1);
       // @ts-ignore - accessing private property
@@ -508,54 +525,54 @@ describe('NNGServer', () => {
     });
   });
 
-  describe('start', () => {
-    it('should start the server', () => {
+  describe("start", () => {
+    it("should start the server", () => {
       server.start();
       expect(server.isRunning()).toBe(true);
     });
 
-    it('should be idempotent - multiple calls are safe', () => {
+    it("should be idempotent - multiple calls are safe", () => {
       server.start();
       server.start(); // Should not throw
       expect(server.isRunning()).toBe(true);
     });
 
-    it('should create disposable receiver', () => {
+    it("should create disposable receiver", () => {
       server.start();
       // @ts-ignore - accessing private property
       expect(server.disposable).toBeDefined();
     });
 
-    it('should start with correct socket options', () => {
+    it("should start with correct socket options", () => {
       server.start();
       // Verify server is running
       expect(server.isRunning()).toBe(true);
     });
   });
 
-  describe('stop', () => {
-    it('should stop the server', () => {
+  describe("stop", () => {
+    it("should stop the server", () => {
       server.start();
       server.stop();
       expect(server.isRunning()).toBe(false);
     });
 
-    it('should be safe to call when not running', () => {
+    it("should be safe to call when not running", () => {
       expect(() => server.stop()).not.toThrow();
     });
 
-    it('should be idempotent - multiple calls are safe', () => {
+    it("should be idempotent - multiple calls are safe", () => {
       server.start();
       server.stop();
       server.stop(); // Should not throw
       expect(server.isRunning()).toBe(false);
     });
 
-    it('should dispose the receiver', () => {
+    it("should dispose the receiver", () => {
       server.start();
       // @ts-ignore - accessing private property
       const disposable = server.disposable;
-      const disposeSpy = jest.spyOn(disposable!, 'dispose');
+      const disposeSpy = jest.spyOn(disposable!, "dispose");
 
       server.stop();
 
@@ -565,26 +582,26 @@ describe('NNGServer', () => {
     });
   });
 
-  describe('isRunning', () => {
-    it('should return false when not started', () => {
+  describe("isRunning", () => {
+    it("should return false when not started", () => {
       expect(server.isRunning()).toBe(false);
     });
 
-    it('should return true when started', () => {
+    it("should return true when started", () => {
       server.start();
       expect(server.isRunning()).toBe(true);
     });
 
-    it('should return false after stopping', () => {
+    it("should return false after stopping", () => {
       server.start();
       server.stop();
       expect(server.isRunning()).toBe(false);
     });
   });
 
-  describe('message handling', () => {
-    it('should use handler to process requests', () => {
-      const handler = jest.fn().mockReturnValue(Buffer.from('response'));
+  describe("message handling", () => {
+    it("should use handler to process requests", () => {
+      const handler = jest.fn().mockReturnValue(Buffer.from("response"));
       server.setHandler(handler);
       server.start();
 
@@ -594,11 +611,11 @@ describe('NNGServer', () => {
       expect(server.handler).toBeDefined();
     });
 
-    it('should handle handler errors gracefully', () => {
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+    it("should handle handler errors gracefully", () => {
+      const errorSpy = jest.spyOn(console, "error").mockImplementation();
 
       const handler = jest.fn().mockImplementation(() => {
-        throw new Error('Handler error');
+        throw new Error("Handler error");
       });
       server.setHandler(handler);
       server.start();
@@ -610,8 +627,8 @@ describe('NNGServer', () => {
       errorSpy.mockRestore();
     });
 
-    it('should return response with correct message type', () => {
-      const handler = jest.fn().mockReturnValue(Buffer.from('response body'));
+    it("should return response with correct message type", () => {
+      const handler = jest.fn().mockReturnValue(Buffer.from("response body"));
       server.setHandler(handler);
       server.start();
 
@@ -621,8 +638,8 @@ describe('NNGServer', () => {
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle rapid start/stop cycles', () => {
+  describe("edge cases", () => {
+    it("should handle rapid start/stop cycles", () => {
       for (let i = 0; i < 10; i++) {
         server.start();
         expect(server.isRunning()).toBe(true);
@@ -631,16 +648,16 @@ describe('NNGServer', () => {
       }
     });
 
-    it('should handle starting without handler', () => {
+    it("should handle starting without handler", () => {
       expect(() => server.start()).not.toThrow();
       expect(server.isRunning()).toBe(true);
     });
 
-    it('should handle changing handler while running', () => {
+    it("should handle changing handler while running", () => {
       server.start();
 
-      const handler1 = jest.fn().mockReturnValue(Buffer.from('response1'));
-      const handler2 = jest.fn().mockReturnValue(Buffer.from('response2'));
+      const handler1 = jest.fn().mockReturnValue(Buffer.from("response1"));
+      const handler2 = jest.fn().mockReturnValue(Buffer.from("response2"));
 
       server.setHandler(handler1);
       // @ts-ignore - accessing private property
@@ -653,10 +670,10 @@ describe('NNGServer', () => {
   });
 });
 
-describe('Transport integration', () => {
-  it('should support client-server communication pattern', () => {
+describe("Transport integration", () => {
+  it("should support client-server communication pattern", () => {
     // Create server with handler
-    const server = new NNGServer('tcp://127.0.0.1:19091', 5000);
+    const server = new NNGServer("tcp://127.0.0.1:19091", 5000);
     const handler = jest.fn().mockImplementation((msgType, reqId, body) => {
       // Echo the body back
       return body;
@@ -665,10 +682,10 @@ describe('Transport integration', () => {
     server.start();
 
     // Create client and call
-    const client = new NNGTransport('tcp://127.0.0.1:19091', 5000);
+    const client = new NNGTransport("tcp://127.0.0.1:19091", 5000);
     client.connect();
 
-    const testData = Buffer.from('test data from client');
+    const testData = Buffer.from("test data from client");
     const [, responseData] = client.call(MSG_INVOKE_REQUEST, testData);
 
     expect(responseData).toBeDefined();
@@ -678,8 +695,8 @@ describe('Transport integration', () => {
     server.stop();
   });
 
-  it('should handle multiple concurrent clients', () => {
-    const server = new NNGServer('tcp://127.0.0.1:19092', 5000);
+  it("should handle multiple concurrent clients", () => {
+    const server = new NNGServer("tcp://127.0.0.1:19092", 5000);
     const handler = jest.fn().mockImplementation((msgType, reqId, body) => {
       return body;
     });
@@ -688,14 +705,17 @@ describe('Transport integration', () => {
 
     const clients: NNGTransport[] = [];
     for (let i = 0; i < 5; i++) {
-      const client = new NNGTransport('tcp://127.0.0.1:19092', 5000);
+      const client = new NNGTransport("tcp://127.0.0.1:19092", 5000);
       client.connect();
       clients.push(client);
     }
 
     // Each client makes a call
     const results = clients.map((client, i) => {
-      const [, responseData] = client.call(MSG_INVOKE_REQUEST, Buffer.from(`client ${i}`));
+      const [, responseData] = client.call(
+        MSG_INVOKE_REQUEST,
+        Buffer.from(`client ${i}`),
+      );
       return responseData;
     });
 

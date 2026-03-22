@@ -5,19 +5,70 @@
  * Uses NNG (nanomsg-next-gen) for transport layer.
  */
 
-import { randomUUID } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
-import { TextDecoder, TextEncoder } from 'node:util';
-import { NNGTransport } from './transport';
+import { randomUUID } from "node:crypto";
+import { gzipSync } from "node:zlib";
+import { TextDecoder, TextEncoder } from "node:util";
+import * as protobuf from "protobufjs";
+import { NNGTransport } from "./transport";
 import {
+  MSG_HEARTBEAT_LOCAL_REQUEST,
   MSG_INVOKE_REQUEST,
   MSG_INVOKE_RESPONSE,
+  MSG_REGISTER_LOCAL_REQUEST,
   MSG_START_JOB_REQUEST,
   MSG_START_JOB_RESPONSE,
-} from './protocol';
+} from "./protocol";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const PROVIDER_PROTO = `
+syntax = "proto3";
+package croupier.sdk.v1;
+
+message LocalFunctionDescriptor {
+  string id = 1;
+  string version = 2;
+  repeated string tags = 3;
+  string summary = 4;
+  string description = 5;
+  string operation_id = 6;
+  bool deprecated = 7;
+  string input_schema = 8;
+  string output_schema = 9;
+  string category = 10;
+  string risk = 11;
+  string entity = 12;
+  string operation = 13;
+}
+
+message RegisterLocalRequest {
+  string service_id = 1;
+  string version = 2;
+  string rpc_addr = 3;
+  repeated LocalFunctionDescriptor functions = 4;
+}
+
+message RegisterLocalResponse {
+  string session_id = 1;
+}
+
+message HeartbeatRequest {
+  string service_id = 1;
+  string session_id = 2;
+}
+
+message HeartbeatResponse {}
+`;
+const providerRoot = protobuf.parse(PROVIDER_PROTO).root;
+const RegisterLocalRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterLocalRequest",
+);
+const RegisterLocalResponseMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterLocalResponse",
+);
+const HeartbeatRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.HeartbeatRequest",
+);
 
 /**
  * Configuration for retrying failed invocations with exponential backoff.
@@ -249,7 +300,7 @@ export interface ClientConfig {
   // === Logging ===
   disableLogging?: boolean;
   debugLogging?: boolean;
-  logLevel?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'OFF';
+  logLevel?: "DEBUG" | "INFO" | "WARN" | "ERROR" | "OFF";
 }
 
 interface LocalFunctionDescriptor {
@@ -308,7 +359,9 @@ class JobState {
       if (this.closed) {
         break;
       }
-      const next = await new Promise<JobEvent | null>((resolve) => this.waiting.push(resolve));
+      const next = await new Promise<JobEvent | null>((resolve) =>
+        this.waiting.push(resolve),
+      );
       if (!next) {
         break;
       }
@@ -320,9 +373,20 @@ class JobState {
 export interface CroupierClient {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void;
-  invoke(functionId: string, payload: string, optionsOrMetadata?: InvokeOptions | Record<string, string>): Promise<string>;
-  startJob(functionId: string, payload: string, optionsOrMetadata?: InvokeOptions | Record<string, string>): string;
+  registerFunction(
+    descriptor: FunctionDescriptor,
+    handler: FunctionHandler,
+  ): void;
+  invoke(
+    functionId: string,
+    payload: string,
+    optionsOrMetadata?: InvokeOptions | Record<string, string>,
+  ): Promise<string>;
+  startJob(
+    functionId: string,
+    payload: string,
+    optionsOrMetadata?: InvokeOptions | Record<string, string>,
+  ): string;
   streamJob(jobId: string): AsyncIterable<JobEvent>;
   cancelJob(jobId: string): boolean;
   serve(): Promise<void>;
@@ -336,38 +400,42 @@ export class BasicClient implements CroupierClient {
   private jobStates: Map<string, JobState> = new Map();
   private transport: NNGTransport | null = null;
   private connected = false;
+  private sessionId = "";
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private reconnectPromise: Promise<void> | null = null;
+  private stopRequested = false;
 
   constructor(config: ClientConfig = {}) {
     this.config = {
       // Connection
-      agentAddr: 'tcp://127.0.0.1:19090',
+      agentAddr: "tcp://127.0.0.1:19090",
       timeout: 30000,
-      localListen: '',
-      controlAddr: '',
+      localListen: "",
+      controlAddr: "",
 
       // Service Identity
       serviceId: `node-sdk-${randomUUID()}`,
-      serviceVersion: '1.0.0',
+      serviceVersion: "1.0.0",
 
       // Game Context
-      gameId: '',
-      env: 'production',
+      gameId: "",
+      env: "production",
 
       // Heartbeat
       heartbeatIntervalSeconds: 60,
 
       // Provider Info
-      providerLang: 'node',
-      providerSdk: 'croupier-js-sdk',
+      providerLang: "node",
+      providerSdk: "croupier-js-sdk",
 
       // TLS (defaults: secure TLS)
       insecure: false,
-      certFile: '',
-      keyFile: '',
-      caFile: '',
+      certFile: "",
+      keyFile: "",
+      caFile: "",
 
       // Authentication
-      authToken: '',
+      authToken: "",
       headers: {},
 
       // Reconnection
@@ -382,7 +450,7 @@ export class BasicClient implements CroupierClient {
       // Logging
       disableLogging: false,
       debugLogging: false,
-      logLevel: 'INFO',
+      logLevel: "INFO",
 
       ...config,
 
@@ -414,20 +482,25 @@ export class BasicClient implements CroupierClient {
       return;
     }
     if (this.handlers.size === 0) {
-      throw new Error('Register at least one function before connecting.');
+      throw new Error("Register at least one function before connecting.");
     }
 
-    this.transport = new NNGTransport(this.config.agentAddr, this.config.timeout);
-    this.transport.connect();
+    this.stopRequested = false;
+    await this.connectAndRegister();
     this.connected = true;
+    this.startHeartbeatLoop();
   }
 
   async disconnect(): Promise<void> {
+    this.stopRequested = true;
+    this.stopHeartbeatLoop();
     if (this.transport) {
       this.transport.close();
       this.transport = null;
     }
     this.connected = false;
+    this.sessionId = "";
+    this.reconnectPromise = null;
   }
 
   async serve(): Promise<void> {
@@ -441,22 +514,22 @@ export class BasicClient implements CroupierClient {
       // Handle graceful shutdown
       const cleanup = () => {
         this.disconnect().catch((err) => {
-          console.error('Error during disconnect:', err);
+          console.error("Error during disconnect:", err);
         });
       };
 
       // Setup process handlers for graceful shutdown
-      if (process.listenerCount('SIGINT') === 0) {
-        process.once('SIGINT', () => {
-          console.log('\nReceived SIGINT, shutting down gracefully...');
+      if (process.listenerCount("SIGINT") === 0) {
+        process.once("SIGINT", () => {
+          console.log("\nReceived SIGINT, shutting down gracefully...");
           cleanup();
           resolve();
         });
       }
 
-      if (process.listenerCount('SIGTERM') === 0) {
-        process.once('SIGTERM', () => {
-          console.log('Received SIGTERM, shutting down gracefully...');
+      if (process.listenerCount("SIGTERM") === 0) {
+        process.once("SIGTERM", () => {
+          console.log("Received SIGTERM, shutting down gracefully...");
           cleanup();
           resolve();
         });
@@ -464,9 +537,11 @@ export class BasicClient implements CroupierClient {
 
       // Log that we're serving
       console.log(`Croupier client serving at ${this.config.agentAddr}`);
-      console.log(`Service: ${this.config.serviceId} @ ${this.config.serviceVersion}`);
+      console.log(
+        `Service: ${this.config.serviceId} @ ${this.config.serviceVersion}`,
+      );
       console.log(`Registered functions: ${this.handlers.size}`);
-      console.log('Press Ctrl+C to stop...');
+      console.log("Press Ctrl+C to stop...");
     });
   }
 
@@ -475,18 +550,25 @@ export class BasicClient implements CroupierClient {
     return this.serve();
   }
 
-  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): void {
+  registerFunction(
+    descriptor: FunctionDescriptor,
+    handler: FunctionHandler,
+  ): void {
     if (this.connected) {
-      throw new Error('Cannot register new functions while connected. Disconnect first.');
+      throw new Error(
+        "Cannot register new functions while connected. Disconnect first.",
+      );
     }
     if (!descriptor.id || !descriptor.version) {
-      throw new Error('Function descriptor must include id and version.');
+      throw new Error("Function descriptor must include id and version.");
     }
     this.descriptors.set(descriptor.id, descriptor);
     this.handlers.set(descriptor.id, handler);
   }
 
-  getFunctionDescriptor(functionId: string): LocalFunctionDescriptor | undefined {
+  getFunctionDescriptor(
+    functionId: string,
+  ): LocalFunctionDescriptor | undefined {
     const desc = this.descriptors.get(functionId);
     if (!desc) {
       return undefined;
@@ -501,36 +583,26 @@ export class BasicClient implements CroupierClient {
     };
   }
 
-  getRegisterRequest(rpcAddr = '') {
+  getRegisterRequest(rpcAddr = "") {
     return {
       serviceId: this.config.serviceId,
       version: this.config.serviceVersion,
       rpcAddr,
-      // Game context
-      gameId: this.config.gameId || undefined,
-      env: this.config.env,
-      // TLS configuration
-      insecure: this.config.insecure,
-      certFile: this.config.certFile || undefined,
-      keyFile: this.config.keyFile || undefined,
-      caFile: this.config.caFile || undefined,
-      // Authentication
-      authToken: this.config.authToken || undefined,
-      headers: Object.keys(this.config.headers).length > 0 ? this.config.headers : undefined,
-      // Reconnection
-      autoReconnect: this.config.autoReconnect,
-      reconnectInterval: this.config.reconnectInterval,
-      // File transfer
-      enableFileTransfer: this.config.enableFileTransfer,
-      maxFileSize: this.config.maxFileSize,
-      // Functions
       functions: Array.from(this.descriptors.values()).map((desc) => ({
         id: desc.id,
         version: desc.version,
-        category: desc.category || '',
-        risk: desc.risk || '',
-        entity: desc.entity || '',
-        operation: desc.operation || '',
+        summary: desc.name || "",
+        description: desc.description || "",
+        input_schema: desc.input_schema
+          ? JSON.stringify(desc.input_schema)
+          : "",
+        output_schema: desc.output_schema
+          ? JSON.stringify(desc.output_schema)
+          : "",
+        category: desc.category || "",
+        risk: desc.risk || "",
+        entity: desc.entity || "",
+        operation: desc.operation || "",
       })),
     };
   }
@@ -538,7 +610,7 @@ export class BasicClient implements CroupierClient {
   async invoke(
     functionId: string,
     payload: string,
-    optionsOrMetadata: InvokeOptions | Record<string, string> = {}
+    optionsOrMetadata: InvokeOptions | Record<string, string> = {},
   ): Promise<string> {
     const handler = this.handlers.get(functionId);
     if (!handler) {
@@ -574,16 +646,21 @@ export class BasicClient implements CroupierClient {
           idempotency_key: options.idempotencyKey,
           timeout,
           retry_config: retryConfig,
-        })
+        }),
       );
-      const [, responseData] = this.transport.call(MSG_INVOKE_REQUEST, requestData);
+      const [, responseData] = this.transport.call(
+        MSG_INVOKE_REQUEST,
+        requestData,
+      );
       return decoder.decode(responseData);
     }
 
     // Local invocation
     const context = JSON.stringify({
       ...metadata,
-      ...(options.idempotencyKey && { idempotency_key: options.idempotencyKey }),
+      ...(options.idempotencyKey && {
+        idempotency_key: options.idempotencyKey,
+      }),
       timeout,
     });
 
@@ -594,7 +671,7 @@ export class BasicClient implements CroupierClient {
   startJob(
     functionId: string,
     payload: string,
-    optionsOrMetadata: InvokeOptions | Record<string, string> = {}
+    optionsOrMetadata: InvokeOptions | Record<string, string> = {},
   ): string {
     const handler = this.handlers.get(functionId);
     if (!handler) {
@@ -625,15 +702,17 @@ export class BasicClient implements CroupierClient {
     this.jobStates.set(jobId, state);
 
     state.push({
-      type: 'started',
-      message: 'job started',
+      type: "started",
+      message: "job started",
       progress: 0,
       payload: new Uint8Array(),
     });
 
     const context = JSON.stringify({
       ...metadata,
-      ...(options.idempotencyKey && { idempotency_key: options.idempotencyKey }),
+      ...(options.idempotencyKey && {
+        idempotency_key: options.idempotencyKey,
+      }),
       timeout,
     });
 
@@ -642,23 +721,24 @@ export class BasicClient implements CroupierClient {
         const result = await handler(context, payload);
         state.push(
           {
-            type: 'completed',
-            message: 'job completed',
+            type: "completed",
+            message: "job completed",
             progress: 100,
-            payload: encoder.encode(result ?? ''),
+            payload: encoder.encode(result ?? ""),
           },
-          true
+          true,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Handler failed';
+        const message =
+          error instanceof Error ? error.message : "Handler failed";
         state.push(
           {
-            type: 'error',
+            type: "error",
             message,
             progress: 0,
             payload: new Uint8Array(),
           },
-          true
+          true,
         );
       } finally {
         this.jobStates.delete(jobId);
@@ -681,12 +761,12 @@ export class BasicClient implements CroupierClient {
     if (state) {
       state.push(
         {
-          type: 'cancelled',
-          message: 'job cancelled',
+          type: "cancelled",
+          message: "job cancelled",
           progress: 0,
           payload: new Uint8Array(),
         },
-        true
+        true,
       );
       this.jobStates.delete(jobId);
       return true;
@@ -700,18 +780,199 @@ export class BasicClient implements CroupierClient {
    * Checks for presence of InvokeOptions-specific fields (retry, idempotencyKey, timeout)
    * that would not typically be in a simple metadata object.
    */
-  private isInvokeOptions(obj: InvokeOptions | Record<string, string>): obj is InvokeOptions {
-    if (!obj || typeof obj !== 'object') {
+  private isInvokeOptions(
+    obj: InvokeOptions | Record<string, string>,
+  ): obj is InvokeOptions {
+    if (!obj || typeof obj !== "object") {
       return false;
     }
     // Check if any InvokeOptions-specific field is present
-    return 'retry' in obj || 'idempotencyKey' in obj || 'timeout' in obj;
+    return "retry" in obj || "idempotencyKey" in obj || "timeout" in obj;
+  }
+
+  private async connectAndRegister(): Promise<void> {
+    const transport = new NNGTransport(
+      this.config.agentAddr,
+      this.config.timeout,
+    );
+    transport.connect();
+
+    try {
+      const [, responseData] = transport.call(
+        MSG_REGISTER_LOCAL_REQUEST,
+        this.serializeRegisterLocalRequest(
+          this.getRegisterRequest(this.resolveRpcAddr()),
+        ),
+      );
+      const response = this.parseRegisterLocalResponse(responseData);
+      if (!response.sessionId) {
+        throw new Error("RegisterLocal returned empty session_id");
+      }
+
+      if (this.transport) {
+        this.transport.close();
+      }
+      this.transport = transport;
+      this.sessionId = response.sessionId;
+    } catch (error) {
+      transport.close();
+      throw error;
+    }
+  }
+
+  private startHeartbeatLoop(): void {
+    this.stopHeartbeatLoop();
+    const intervalMs = Math.max(this.config.heartbeatIntervalSeconds, 1) * 1000;
+    this.heartbeatTimer = setInterval(() => {
+      void this.sendHeartbeat().catch(() => {
+        void this.scheduleReconnect();
+      });
+    }, intervalMs);
+  }
+
+  private stopHeartbeatLoop(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private async sendHeartbeat(): Promise<void> {
+    if (!this.transport || !this.connected || !this.sessionId) {
+      throw new Error("Client is not registered");
+    }
+
+    this.transport.call(
+      MSG_HEARTBEAT_LOCAL_REQUEST,
+      this.serializeHeartbeatRequest({
+        serviceId: this.config.serviceId,
+        sessionId: this.sessionId,
+      }),
+    );
+  }
+
+  private async scheduleReconnect(): Promise<void> {
+    if (
+      this.stopRequested ||
+      !this.config.autoReconnect ||
+      !this.config.reconnect.enabled
+    ) {
+      return;
+    }
+    if (this.reconnectPromise) {
+      return this.reconnectPromise;
+    }
+
+    this.connected = false;
+    this.stopHeartbeatLoop();
+    if (this.transport) {
+      this.transport.close();
+      this.transport = null;
+    }
+
+    this.reconnectPromise = this.reconnectLoop().finally(() => {
+      this.reconnectPromise = null;
+    });
+    return this.reconnectPromise;
+  }
+
+  private async reconnectLoop(): Promise<void> {
+    let attempt = 0;
+
+    while (!this.stopRequested) {
+      attempt += 1;
+
+      try {
+        await this.connectAndRegister();
+        this.connected = true;
+        this.startHeartbeatLoop();
+        return;
+      } catch {
+        const maxAttempts = this.config.reconnect.maxAttempts ?? 0;
+        if (maxAttempts > 0 && attempt >= maxAttempts) {
+          throw new Error("Max reconnect attempts reached");
+        }
+        await this.delay(this.calculateReconnectDelay(attempt));
+      }
+    }
+  }
+
+  private calculateReconnectDelay(attempt: number): number {
+    const initialDelayMs = this.config.reconnect.initialDelayMs ?? 1000;
+    const maxDelayMs = this.config.reconnect.maxDelayMs ?? 30000;
+    const backoffMultiplier = this.config.reconnect.backoffMultiplier ?? 2.0;
+    const jitterFactor = this.config.reconnect.jitterFactor ?? 0.2;
+    const exponentialDelay = Math.min(
+      initialDelayMs * Math.pow(backoffMultiplier, Math.max(attempt - 1, 0)),
+      maxDelayMs,
+    );
+
+    if (jitterFactor <= 0) {
+      return exponentialDelay;
+    }
+
+    const jitter = (Math.random() * 2 - 1) * jitterFactor * exponentialDelay;
+    return Math.max(0, Math.round(exponentialDelay + jitter));
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private resolveRpcAddr(): string {
+    return this.config.localListen || "";
+  }
+
+  private serializeRegisterLocalRequest(
+    request: ReturnType<BasicClient["getRegisterRequest"]>,
+  ): Buffer {
+    const payload = RegisterLocalRequestMessage.create({
+      serviceId: request.serviceId,
+      version: request.version,
+      rpcAddr: request.rpcAddr,
+      functions: request.functions.map((fn) => ({
+        id: fn.id,
+        version: fn.version,
+        summary: fn.summary,
+        description: fn.description,
+        inputSchema: fn.input_schema,
+        outputSchema: fn.output_schema,
+        category: fn.category,
+        risk: fn.risk,
+        entity: fn.entity,
+        operation: fn.operation,
+      })),
+    });
+
+    return Buffer.from(RegisterLocalRequestMessage.encode(payload).finish());
+  }
+
+  private parseRegisterLocalResponse(data: Buffer): { sessionId: string } {
+    const decoded = RegisterLocalResponseMessage.decode(data);
+    const object = RegisterLocalResponseMessage.toObject(decoded, {
+      defaults: true,
+    }) as { sessionId?: string };
+
+    return {
+      sessionId: object.sessionId || "",
+    };
+  }
+
+  private serializeHeartbeatRequest(request: {
+    serviceId: string;
+    sessionId: string;
+  }): Buffer {
+    const payload = HeartbeatRequestMessage.create({
+      serviceId: request.serviceId,
+      sessionId: request.sessionId,
+    });
+    return Buffer.from(HeartbeatRequestMessage.encode(payload).finish());
   }
 
   buildManifest() {
     const functions = Array.from(this.descriptors.values()).map((desc) => ({
       id: desc.id,
-      version: desc.version || '1.0.0',
+      version: desc.version || "1.0.0",
       category: desc.category,
       description: desc.description,
       input_schema: desc.input_schema,
@@ -740,7 +1001,7 @@ export function createClient(config?: ClientConfig): CroupierClient {
 }
 
 // Export protocol and transport
-export * from './protocol';
-export * from './transport';
+export * from "./protocol";
+export * from "./transport";
 
 export { BasicClient as default };

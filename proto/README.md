@@ -33,15 +33,17 @@ proto/
 ## 通信场景
 
 ### component/ - 组件元数据
+
 **不是通信协议**，用于定义函数时的注解/装饰器。
 
-| 文件 | 用途 |
-|-----|------|
+| 文件                     | 用途                                                         |
+| ------------------------ | ------------------------------------------------------------ |
 | `function_options.proto` | 方法级元信息：function_id, risk, timeout, two_person_rule 等 |
-| `ui_options.proto` | 字段级 UI 元信息：widget, label, placeholder, sensitive 等 |
-| `dashboard_ui.proto` | 共享 UI 类型：I18nText, Menu, PermissionSpec |
+| `ui_options.proto`       | 字段级 UI 元信息：widget, label, placeholder, sensitive 等   |
+| `dashboard_ui.proto`     | 共享 UI 类型：I18nText, Menu, PermissionSpec                 |
 
 **使用示例**：
+
 ```proto
 import "croupier/component/v1/function_options.proto";
 import "croupier/component/v1/ui_options.proto";
@@ -62,46 +64,53 @@ message BanRequest {
 ```
 
 ### sdk/ - Game SDK → Agent
+
 游戏服务器 SDK 与本地 Agent 的通信协议。
 
-| 文件 | 用途 |
-|-----|------|
-| `provider.proto` | 游戏服务器向 Agent 注册函数、心跳、查询本地实例 |
+| 文件               | 用途                                              |
+| ------------------ | ------------------------------------------------- |
+| `provider.proto`   | 游戏服务器向 Agent 注册函数、心跳、查询本地实例   |
 | `invocation.proto` | 调用者请求执行函数（同步/异步）、任务流、取消任务 |
 
 **通信方向**：
+
 ```
 Game SDK --[NNG]--> Agent
 Invoker  --[NNG]--> Agent
 ```
 
 ### agent/ - Agent → Server
+
 Agent 与中央 Server 的通信协议。
 
-| 文件 | 用途 |
-|-----|------|
-| `register.proto` | Agent 向 Server 注册、心跳、能力注册 |
-| `ops.proto` | 运维操作：指标上报、进程管理、系统信息查询 |
-| `job.proto` | 任务类型定义（JobStatus, JobEvent） |
+| 文件             | 用途                                       |
+| ---------------- | ------------------------------------------ |
+| `register.proto` | Agent 向 Server 注册、心跳、能力注册       |
+| `ops.proto`      | 运维操作：指标上报、进程管理、系统信息查询 |
+| `job.proto`      | 任务类型定义（JobStatus, JobEvent）        |
 
 **通信方向**：
+
 ```
 Agent --[NNG]--> Server
 ```
 
 ### external/ - Server → 第三方服务
+
 Server 调用第三方平台（如 QuickSDK）的统一接口。
 
-| 文件 | 用途 |
-|-----|------|
+| 文件             | 用途                                       |
+| ---------------- | ------------------------------------------ |
 | `platform.proto` | 调用第三方平台 API、查询平台列表、重载配置 |
 
 **通信方向**：
+
 ```
 Server --> 第三方平台 (QuickSDK, etc.)
 ```
 
 ### examples/ - 示例
+
 函数定义示例，展示如何使用 `component` 中的元数据注解。
 
 ## 通信协议说明

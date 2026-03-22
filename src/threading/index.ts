@@ -21,4 +21,4 @@ export {
   processQueue,
   type Callback,
   type CallbackWithData,
-} from './dispatcher';
+} from "./dispatcher";

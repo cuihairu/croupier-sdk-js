@@ -37,23 +37,26 @@ yarn add @croupier/sdk
 ## 快速开始
 
 ```typescript
-import { CroupierClient, ClientConfig } from '@croupier/sdk';
+import { CroupierClient, ClientConfig } from "@croupier/sdk";
 
 const config: ClientConfig = {
-  agentAddr: 'localhost:19090',
-  gameId: 'my-game',
-  env: 'development',
+  agentAddr: "localhost:19090",
+  gameId: "my-game",
+  env: "development",
   insecure: true,
 };
 
 const client = new CroupierClient(config);
 
-client.registerFunction({
-  id: 'hello.world',
-  version: '0.1.0',
-}, async (ctx, payload) => {
-  return { message: 'Hello from JavaScript!' };
-});
+client.registerFunction(
+  {
+    id: "hello.world",
+    version: "0.1.0",
+  },
+  async (ctx, payload) => {
+    return { message: "Hello from JavaScript!" };
+  },
+);
 
 await client.connect();
 await client.serve();

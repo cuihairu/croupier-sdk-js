@@ -19,9 +19,9 @@ import {
   getDispatcher,
   enqueue,
   processQueue,
-} from './dispatcher';
+} from "./dispatcher";
 
-describe('MainThreadDispatcher', () => {
+describe("MainThreadDispatcher", () => {
   beforeEach(() => {
     MainThreadDispatcher.resetInstance();
     getDispatcher().initialize();
@@ -31,18 +31,18 @@ describe('MainThreadDispatcher', () => {
     MainThreadDispatcher.resetInstance();
   });
 
-  describe('initialization', () => {
-    it('should be initialized after initialize() call', () => {
+  describe("initialization", () => {
+    it("should be initialized after initialize() call", () => {
       expect(getDispatcher().isInitialized()).toBe(true);
     });
 
-    it('should be on main thread after initialization', () => {
+    it("should be on main thread after initialization", () => {
       expect(getDispatcher().isMainThread()).toBe(true);
     });
   });
 
-  describe('enqueue', () => {
-    it('should execute immediately when initialized (default behavior)', () => {
+  describe("enqueue", () => {
+    it("should execute immediately when initialized (default behavior)", () => {
       let executed = false;
       getDispatcher().enqueue(() => {
         executed = true;
@@ -50,7 +50,7 @@ describe('MainThreadDispatcher', () => {
       expect(executed).toBe(true);
     });
 
-    it('should queue for later when executeImmediatelyIfInitialized is false', () => {
+    it("should queue for later when executeImmediatelyIfInitialized is false", () => {
       let executed = false;
       getDispatcher().enqueue(() => {
         executed = true;
@@ -64,15 +64,15 @@ describe('MainThreadDispatcher', () => {
       expect(executed).toBe(true);
     });
 
-    it('should ignore null callbacks', () => {
+    it("should ignore null callbacks", () => {
       const initialCount = getDispatcher().getPendingCount();
       getDispatcher().enqueue(null);
       expect(getDispatcher().getPendingCount()).toBe(initialCount);
     });
   });
 
-  describe('enqueueDeferred', () => {
-    it('should always queue and never execute immediately', () => {
+  describe("enqueueDeferred", () => {
+    it("should always queue and never execute immediately", () => {
       let executed = false;
       getDispatcher().enqueueDeferred(() => {
         executed = true;
@@ -86,31 +86,31 @@ describe('MainThreadDispatcher', () => {
     });
   });
 
-  describe('enqueueWithData', () => {
-    it('should pass data correctly to callback', () => {
+  describe("enqueueWithData", () => {
+    it("should pass data correctly to callback", () => {
       let receivedData: string | null = null;
 
       getDispatcher().enqueueWithData((data: string) => {
         receivedData = data;
-      }, 'test-data');
+      }, "test-data");
 
       getDispatcher().processQueue();
-      expect(receivedData).toBe('test-data');
+      expect(receivedData).toBe("test-data");
     });
 
-    it('should ignore null callbacks', () => {
+    it("should ignore null callbacks", () => {
       const initialCount = getDispatcher().getPendingCount();
-      getDispatcher().enqueueWithData(null, 'test-data');
+      getDispatcher().enqueueWithData(null, "test-data");
       expect(getDispatcher().getPendingCount()).toBe(initialCount);
     });
   });
 
-  describe('processQueue', () => {
-    it('should return 0 when queue is empty', () => {
+  describe("processQueue", () => {
+    it("should return 0 when queue is empty", () => {
       expect(getDispatcher().processQueue()).toBe(0);
     });
 
-    it('should process all queued callbacks', () => {
+    it("should process all queued callbacks", () => {
       let count = 0;
       for (let i = 0; i < 5; i++) {
         getDispatcher().enqueueDeferred(() => {
@@ -124,7 +124,7 @@ describe('MainThreadDispatcher', () => {
       expect(getDispatcher().getPendingCount()).toBe(0);
     });
 
-    it('should respect max count limit', () => {
+    it("should respect max count limit", () => {
       let count = 0;
       for (let i = 0; i < 10; i++) {
         getDispatcher().enqueueDeferred(() => {
@@ -145,13 +145,15 @@ describe('MainThreadDispatcher', () => {
       expect(count).toBe(10);
     });
 
-    it('should handle exceptions gracefully', () => {
+    it("should handle exceptions gracefully", () => {
       const results: number[] = [];
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       getDispatcher().enqueueDeferred(() => results.push(1));
       getDispatcher().enqueueDeferred(() => {
-        throw new Error('Test error');
+        throw new Error("Test error");
       });
       getDispatcher().enqueueDeferred(() => results.push(3));
 
@@ -165,8 +167,8 @@ describe('MainThreadDispatcher', () => {
     });
   });
 
-  describe('clear', () => {
-    it('should remove all pending callbacks', () => {
+  describe("clear", () => {
+    it("should remove all pending callbacks", () => {
       for (let i = 0; i < 5; i++) {
         getDispatcher().enqueueDeferred(() => {});
       }
@@ -177,8 +179,8 @@ describe('MainThreadDispatcher', () => {
     });
   });
 
-  describe('setMaxProcessPerFrame', () => {
-    it('should limit processing', () => {
+  describe("setMaxProcessPerFrame", () => {
+    it("should limit processing", () => {
       getDispatcher().setMaxProcessPerFrame(3);
 
       for (let i = 0; i < 10; i++) {
@@ -193,14 +195,14 @@ describe('MainThreadDispatcher', () => {
     });
   });
 
-  describe('singleton', () => {
-    it('should return the same instance', () => {
+  describe("singleton", () => {
+    it("should return the same instance", () => {
       const instance1 = MainThreadDispatcher.getInstance();
       const instance2 = MainThreadDispatcher.getInstance();
       expect(instance1).toBe(instance2);
     });
 
-    it('should reset properly', () => {
+    it("should reset properly", () => {
       getDispatcher().enqueueDeferred(() => {});
       expect(getDispatcher().getPendingCount()).toBe(1);
 
@@ -210,8 +212,8 @@ describe('MainThreadDispatcher', () => {
     });
   });
 
-  describe('convenience functions', () => {
-    it('enqueue should work correctly', () => {
+  describe("convenience functions", () => {
+    it("enqueue should work correctly", () => {
       let executed = false;
       enqueue(() => {
         executed = true;
@@ -219,7 +221,7 @@ describe('MainThreadDispatcher', () => {
       expect(executed).toBe(true);
     });
 
-    it('processQueue should work correctly', () => {
+    it("processQueue should work correctly", () => {
       getDispatcher().enqueueDeferred(() => {});
       const processed = processQueue();
       expect(processed).toBe(1);

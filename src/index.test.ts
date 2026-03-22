@@ -1,55 +1,97 @@
-import { BasicClient, createClient, FunctionDescriptor, InvokeOptions } from './index';
+import * as protobuf from "protobufjs";
+import {
+  BasicClient,
+  createClient,
+  FunctionDescriptor,
+  InvokeOptions,
+} from "./index";
+import { NNGTransport } from "./transport";
+import {
+  MSG_HEARTBEAT_LOCAL_REQUEST,
+  MSG_REGISTER_LOCAL_REQUEST,
+} from "./protocol";
 
-describe('BasicClient', () => {
-  test('connect requires at least one function', async () => {
-    const client = new BasicClient({ agentAddr: 'tcp://127.0.0.1:19090' });
-    await expect(client.connect()).rejects.toThrow(/Register at least one function/i);
+const providerRoot = protobuf.parse(`
+syntax = "proto3";
+package croupier.sdk.v1;
+message RegisterLocalResponse { string session_id = 1; }
+message HeartbeatResponse {}
+message RegisterLocalRequest {
+  string service_id = 1;
+  string version = 2;
+  string rpc_addr = 3;
+}
+message HeartbeatRequest {
+  string service_id = 1;
+  string session_id = 2;
+}
+`).root;
+const RegisterLocalResponseMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterLocalResponse",
+);
+const RegisterLocalRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterLocalRequest",
+);
+const HeartbeatRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.HeartbeatRequest",
+);
+
+describe("BasicClient", () => {
+  test("connect requires at least one function", async () => {
+    const client = new BasicClient({ agentAddr: "tcp://127.0.0.1:19090" });
+    await expect(client.connect()).rejects.toThrow(
+      /Register at least one function/i,
+    );
   });
 
-  test('registerFunction validates descriptor', () => {
+  test("registerFunction validates descriptor", () => {
     const client = new BasicClient();
-    const handler = async () => '';
+    const handler = async () => "";
 
-    expect(() => client.registerFunction({ id: '', version: '1.0.0' }, handler)).toThrow(/id and version/i);
-    expect(() => client.registerFunction({ id: 'f1', version: '' }, handler)).toThrow(/id and version/i);
+    expect(() =>
+      client.registerFunction({ id: "", version: "1.0.0" }, handler),
+    ).toThrow(/id and version/i);
+    expect(() =>
+      client.registerFunction({ id: "f1", version: "" }, handler),
+    ).toThrow(/id and version/i);
   });
 
-  test('buildManifest includes provider and functions', () => {
+  test("buildManifest includes provider and functions", () => {
     const client = new BasicClient({
-      serviceId: 'svc-1',
-      serviceVersion: 'sv1',
-      providerLang: 'node',
-      providerSdk: 'croupier-js-sdk',
+      serviceId: "svc-1",
+      serviceVersion: "sv1",
+      providerLang: "node",
+      providerSdk: "croupier-js-sdk",
     });
 
     client.registerFunction(
-      { id: 'f1', version: '1.2.3', name: 'category-a', description: 'desc' },
-      async () => 'ok',
+      { id: "f1", version: "1.2.3", name: "category-a", description: "desc" },
+      async () => "ok",
     );
 
     const manifest = (client as any).buildManifest();
     expect(manifest.provider).toEqual({
-      id: 'svc-1',
-      version: 'sv1',
-      lang: 'node',
-      sdk: 'croupier-js-sdk',
+      id: "svc-1",
+      version: "sv1",
+      lang: "node",
+      sdk: "croupier-js-sdk",
     });
     expect(manifest.functions).toHaveLength(1);
-    expect(manifest.functions[0].id).toBe('f1');
-    expect(manifest.functions[0].version).toBe('1.2.3');
+    expect(manifest.functions[0].id).toBe("f1");
+    expect(manifest.functions[0].version).toBe("1.2.3");
   });
 
-  test('startJob/streamJob produces started then completed', async () => {
+  test("startJob/streamJob produces started then completed", async () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'f1', version: '1.0.0' },
+      { id: "f1", version: "1.0.0" },
       async (_ctx, payload) => {
         await new Promise((resolve) => setTimeout(resolve, 25));
         return `ok:${payload}`;
       },
     );
 
-    const jobId = client.startJob('f1', 'hi');
+    const jobId = client.startJob("f1", "hi");
     const iterable = client.streamJob(jobId);
     const events: any[] = [];
 
@@ -57,28 +99,27 @@ describe('BasicClient', () => {
       events.push(evt);
     }
 
-    expect(events[0].type).toBe('started');
-    expect(events[events.length - 1].type).toBe('completed');
-    expect(new TextDecoder().decode(events[events.length - 1].payload)).toBe('ok:hi');
+    expect(events[0].type).toBe("started");
+    expect(events[events.length - 1].type).toBe("completed");
+    expect(new TextDecoder().decode(events[events.length - 1].payload)).toBe(
+      "ok:hi",
+    );
   });
 
-  test('cancelJob closes stream with cancelled event', async () => {
+  test("cancelJob closes stream with cancelled event", async () => {
     const client = new BasicClient();
-    client.registerFunction(
-      { id: 'f1', version: '1.0.0' },
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        return 'late';
-      },
-    );
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return "late";
+    });
 
-    const jobId = client.startJob('f1', '');
+    const jobId = client.startJob("f1", "");
     const iterable = client.streamJob(jobId);
 
     // Get the first event (started)
     const reader = iterable[Symbol.asyncIterator]();
     const first = await reader.next();
-    expect(first.value.type).toBe('started');
+    expect(first.value.type).toBe("started");
 
     // Cancel the job
     client.cancelJob(jobId);
@@ -89,160 +130,168 @@ describe('BasicClient', () => {
       events.push(evt);
     }
 
-    expect(events.some((e) => e.type === 'cancelled')).toBe(true);
+    expect(events.some((e) => e.type === "cancelled")).toBe(true);
   });
 
-  test('constructor applies default config', () => {
+  test("constructor applies default config", () => {
     const client = new BasicClient();
     const config = (client as any).config;
 
-    expect(config.agentAddr).toBe('tcp://127.0.0.1:19090');
+    expect(config.agentAddr).toBe("tcp://127.0.0.1:19090");
     expect(config.timeout).toBe(30000);
-    expect(config.serviceVersion).toBe('1.0.0');
+    expect(config.serviceVersion).toBe("1.0.0");
     expect(config.heartbeatIntervalSeconds).toBe(60);
-    expect(config.providerLang).toBe('node');
-    expect(config.providerSdk).toBe('croupier-js-sdk');
+    expect(config.providerLang).toBe("node");
+    expect(config.providerSdk).toBe("croupier-js-sdk");
   });
 
-  test('constructor merges user config', () => {
+  test("constructor merges user config", () => {
     const client = new BasicClient({
-      agentAddr: 'tcp://192.168.1.1:9999',
-      serviceId: 'my-service',
+      agentAddr: "tcp://192.168.1.1:9999",
+      serviceId: "my-service",
       timeout: 5000,
     });
     const config = (client as any).config;
 
-    expect(config.agentAddr).toBe('tcp://192.168.1.1:9999');
-    expect(config.serviceId).toBe('my-service');
+    expect(config.agentAddr).toBe("tcp://192.168.1.1:9999");
+    expect(config.serviceId).toBe("my-service");
     expect(config.timeout).toBe(5000);
     // Defaults should still apply for unspecified values
-    expect(config.serviceVersion).toBe('1.0.0');
+    expect(config.serviceVersion).toBe("1.0.0");
   });
 
-  test('invoke calls registered handler locally', async () => {
+  test("invoke calls registered handler locally", async () => {
     const client = new BasicClient();
-    const handler = jest.fn().mockResolvedValue('test-result');
-    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+    const handler = jest.fn().mockResolvedValue("test-result");
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
-    const result = await client.invoke('test.fn', 'input');
+    const result = await client.invoke("test.fn", "input");
 
     // Context now includes timeout from client config
-    expect(handler).toHaveBeenCalledWith(expect.stringContaining('timeout'), 'input');
-    expect(result).toBe('test-result');
+    expect(handler).toHaveBeenCalledWith(
+      expect.stringContaining("timeout"),
+      "input",
+    );
+    expect(result).toBe("test-result");
   });
 
-  test('invoke throws for unregistered function', async () => {
+  test("invoke throws for unregistered function", async () => {
     const client = new BasicClient();
 
-    await expect(client.invoke('unknown.fn', '')).rejects.toThrow(/not found/i);
+    await expect(client.invoke("unknown.fn", "")).rejects.toThrow(/not found/i);
   });
 
-  test('invoke propagates handler errors', async () => {
+  test("invoke propagates handler errors", async () => {
     const client = new BasicClient();
-    const handler = jest.fn().mockRejectedValue(new Error('Handler error'));
-    client.registerFunction({ id: 'failing.fn', version: '1.0.0' }, handler);
+    const handler = jest.fn().mockRejectedValue(new Error("Handler error"));
+    client.registerFunction({ id: "failing.fn", version: "1.0.0" }, handler);
 
-    await expect(client.invoke('failing.fn', '')).rejects.toThrow(/Handler error/);
+    await expect(client.invoke("failing.fn", "")).rejects.toThrow(
+      /Handler error/,
+    );
   });
 
-  test('registerFunction throws when connected', () => {
+  test("registerFunction throws when connected", () => {
     const client = new BasicClient();
-    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
     // Manually set connected to true (since we can't actually connect in tests)
     (client as any).connected = true;
 
     expect(() =>
-      client.registerFunction({ id: 'f2', version: '1.0.0' }, async () => 'ok')
+      client.registerFunction({ id: "f2", version: "1.0.0" }, async () => "ok"),
     ).toThrow(/Cannot register new functions while connected/);
   });
 
-  test('streamJob throws for missing jobId', () => {
+  test("streamJob throws for missing jobId", () => {
     const client = new BasicClient();
 
-    expect(() => client.streamJob('')).toThrow();
+    expect(() => client.streamJob("")).toThrow();
   });
 
-  test('startJob creates job state and returns jobId', () => {
-    const client = new BasicClient();
-    client.registerFunction({ id: 'async.fn', version: '1.0.0' }, async () => 'done');
-
-    const jobId = client.startJob('async.fn', '');
-
-    expect(jobId).toBeDefined();
-    expect(jobId).toContain('async.fn-');
-  });
-
-  test('startJob emits error event on handler failure', async () => {
+  test("startJob creates job state and returns jobId", () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'failing.fn', version: '1.0.0' },
+      { id: "async.fn", version: "1.0.0" },
+      async () => "done",
+    );
+
+    const jobId = client.startJob("async.fn", "");
+
+    expect(jobId).toBeDefined();
+    expect(jobId).toContain("async.fn-");
+  });
+
+  test("startJob emits error event on handler failure", async () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: "failing.fn", version: "1.0.0" },
       async () => {
-        throw new Error('Async error');
+        throw new Error("Async error");
       },
     );
 
-    const jobId = client.startJob('failing.fn', '');
+    const jobId = client.startJob("failing.fn", "");
     const events: any[] = [];
 
     for await (const evt of client.streamJob(jobId)) {
       events.push(evt);
     }
 
-    expect(events[0].type).toBe('started');
-    expect(events[1].type).toBe('error');
-    expect(events[1].message).toBe('Async error');
+    expect(events[0].type).toBe("started");
+    expect(events[1].type).toBe("error");
+    expect(events[1].message).toBe("Async error");
   });
 
-  test('buildManifest includes all descriptor fields', () => {
+  test("buildManifest includes all descriptor fields", () => {
     const client = new BasicClient();
 
     client.registerFunction(
       {
-        id: 'full.fn',
-        version: '2.0.0',
-        category: 'full-category',
-        description: 'A full function descriptor',
-        input_schema: { type: 'object' },
-        output_schema: { type: 'string' },
+        id: "full.fn",
+        version: "2.0.0",
+        category: "full-category",
+        description: "A full function descriptor",
+        input_schema: { type: "object" },
+        output_schema: { type: "string" },
       },
-      async () => 'ok',
+      async () => "ok",
     );
 
     const manifest = (client as any).buildManifest();
-    const fn = manifest.functions.find((f: any) => f.id === 'full.fn');
+    const fn = manifest.functions.find((f: any) => f.id === "full.fn");
 
     expect(fn).toBeDefined();
-    expect(fn.version).toBe('2.0.0');
-    expect(fn.category).toBe('full-category');
-    expect(fn.description).toBe('A full function descriptor');
-    expect(fn.input_schema).toEqual({ type: 'object' });
-    expect(fn.output_schema).toEqual({ type: 'string' });
+    expect(fn.version).toBe("2.0.0");
+    expect(fn.category).toBe("full-category");
+    expect(fn.description).toBe("A full function descriptor");
+    expect(fn.input_schema).toEqual({ type: "object" });
+    expect(fn.output_schema).toEqual({ type: "string" });
   });
 
-  test('cancelJob does nothing for unknown job', () => {
+  test("cancelJob does nothing for unknown job", () => {
     const client = new BasicClient();
 
     // Should return false (not throw)
-    const result = client.cancelJob('unknown-job');
+    const result = client.cancelJob("unknown-job");
     expect(result).toBe(false);
   });
 
-  test('buildManifest defaults version to 1.0.0', () => {
+  test("buildManifest defaults version to 1.0.0", () => {
     const client = new BasicClient();
 
     // Register with empty version (though registerFunction would reject this)
-    (client as any).descriptors.set('test', { id: 'test', version: '' });
+    (client as any).descriptors.set("test", { id: "test", version: "" });
 
     const manifest = (client as any).buildManifest();
-    const fn = manifest.functions.find((f: any) => f.id === 'test');
+    const fn = manifest.functions.find((f: any) => f.id === "test");
 
-    expect(fn.version).toBe('1.0.0');
+    expect(fn.version).toBe("1.0.0");
   });
 
-  test('disconnect clears state', async () => {
+  test("disconnect clears state", async () => {
     const client = new BasicClient();
-    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
     // Set some state
     (client as any).connected = true;
@@ -252,17 +301,17 @@ describe('BasicClient', () => {
     expect((client as any).connected).toBe(false);
   });
 
-  test('invoke with empty payload uses default', async () => {
+  test("invoke with empty payload uses default", async () => {
     const client = new BasicClient();
-    const handler = jest.fn().mockResolvedValue('result');
-    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+    const handler = jest.fn().mockResolvedValue("result");
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
-    await client.invoke('test.fn', '');
+    await client.invoke("test.fn", "");
 
-    expect(handler).toHaveBeenCalledWith(expect.any(String), '');
+    expect(handler).toHaveBeenCalledWith(expect.any(String), "");
   });
 
-  test('connect is idempotent - multiple calls are safe', async () => {
+  test("connect is idempotent - multiple calls are safe", async () => {
     const client = new BasicClient();
 
     // First connect would fail without mocking, so we test the idempotency check
@@ -272,115 +321,247 @@ describe('BasicClient', () => {
     await expect(client.connect()).resolves.not.toThrow();
   });
 
-  test('startJob throws for unregistered function', () => {
-    const client = new BasicClient();
+  test("connect sends RegisterLocalRequest and stores session id", async () => {
+    const registerCalls: Buffer[] = [];
+    const connectSpy = jest
+      .spyOn(NNGTransport.prototype, "connect")
+      .mockImplementation(() => {});
+    const callSpy = jest
+      .spyOn(NNGTransport.prototype, "call")
+      .mockImplementation((msgType, data) => {
+        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+          registerCalls.push(Buffer.from(data));
+          const response = RegisterLocalResponseMessage.create({
+            sessionId: "session-1",
+          });
+          return [
+            msgType + 1,
+            Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
+          ];
+        }
+        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+          return [msgType + 1, Buffer.alloc(0)];
+        }
+        throw new Error(`Unexpected msgType ${msgType}`);
+      });
+    const closeSpy = jest
+      .spyOn(NNGTransport.prototype, "close")
+      .mockImplementation(() => {});
 
-    expect(() => client.startJob('unknown.fn', '')).toThrow(/not found/i);
+    const client = new BasicClient({
+      serviceId: "test-service",
+      localListen: "127.0.0.1:19091",
+      heartbeatIntervalSeconds: 60,
+    });
+    client.registerFunction(
+      { id: "test.fn", version: "1.0.0" },
+      async () => "ok",
+    );
+
+    await client.connect();
+
+    const decoded = RegisterLocalRequestMessage.decode(registerCalls[0]);
+    const request = RegisterLocalRequestMessage.toObject(decoded, {
+      defaults: true,
+    }) as {
+      serviceId: string;
+      rpcAddr: string;
+    };
+    expect(request.serviceId).toBe("test-service");
+    expect(request.rpcAddr).toBe("127.0.0.1:19091");
+    expect((client as any).sessionId).toBe("session-1");
+
+    await client.disconnect();
+    connectSpy.mockRestore();
+    callSpy.mockRestore();
+    closeSpy.mockRestore();
   });
 
-  test('streamJob throws for unknown job', () => {
-    const client = new BasicClient();
+  test("heartbeat failure triggers reconnect and re-register", async () => {
+    jest.useFakeTimers();
 
-    expect(() => client.streamJob('unknown-job-id')).toThrow(/not found/i);
+    let registerCount = 0;
+    let heartbeatCount = 0;
+    const connectSpy = jest
+      .spyOn(NNGTransport.prototype, "connect")
+      .mockImplementation(() => {});
+    const callSpy = jest
+      .spyOn(NNGTransport.prototype, "call")
+      .mockImplementation((msgType, data) => {
+        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+          registerCount += 1;
+          const response = RegisterLocalResponseMessage.create({
+            sessionId: `session-${registerCount}`,
+          });
+          return [
+            msgType + 1,
+            Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
+          ];
+        }
+        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+          heartbeatCount += 1;
+          if (heartbeatCount === 1) {
+            throw new Error("heartbeat failed");
+          }
+          const decoded = HeartbeatRequestMessage.decode(data);
+          const request = HeartbeatRequestMessage.toObject(decoded, {
+            defaults: true,
+          }) as {
+            sessionId: string;
+          };
+          expect(request.sessionId).toBe("session-2");
+          return [msgType + 1, Buffer.alloc(0)];
+        }
+        throw new Error(`Unexpected msgType ${msgType}`);
+      });
+    const closeSpy = jest
+      .spyOn(NNGTransport.prototype, "close")
+      .mockImplementation(() => {});
+
+    const client = new BasicClient({
+      serviceId: "test-service",
+      heartbeatIntervalSeconds: 1,
+      reconnect: {
+        initialDelayMs: 10,
+        maxDelayMs: 10,
+        backoffMultiplier: 1,
+        jitterFactor: 0,
+      },
+    });
+    client.registerFunction(
+      { id: "test.fn", version: "1.0.0" },
+      async () => "ok",
+    );
+
+    await client.connect();
+    expect(registerCount).toBe(1);
+    expect((client as any).sessionId).toBe("session-1");
+
+    await jest.advanceTimersByTimeAsync(1000);
+    await jest.advanceTimersByTimeAsync(20);
+
+    expect(registerCount).toBeGreaterThanOrEqual(2);
+    expect((client as any).sessionId).toBe("session-2");
+
+    await client.disconnect();
+    jest.useRealTimers();
+    connectSpy.mockRestore();
+    callSpy.mockRestore();
+    closeSpy.mockRestore();
   });
 
-  test('buildManifest without category uses descriptor id', () => {
+  test("startJob throws for unregistered function", () => {
+    const client = new BasicClient();
+
+    expect(() => client.startJob("unknown.fn", "")).toThrow(/not found/i);
+  });
+
+  test("streamJob throws for unknown job", () => {
+    const client = new BasicClient();
+
+    expect(() => client.streamJob("unknown-job-id")).toThrow(/not found/i);
+  });
+
+  test("buildManifest without category uses descriptor id", () => {
     const client = new BasicClient();
 
     client.registerFunction(
       {
-        id: 'simple.fn',
-        version: '1.0.0',
+        id: "simple.fn",
+        version: "1.0.0",
         // no category specified
       },
-      async () => 'ok',
+      async () => "ok",
     );
 
     const manifest = (client as any).buildManifest();
-    const fn = manifest.functions.find((f: any) => f.id === 'simple.fn');
+    const fn = manifest.functions.find((f: any) => f.id === "simple.fn");
 
     expect(fn).toBeDefined();
     expect(fn.category).toBeUndefined();
   });
 
-  test('createClient exports a factory function', () => {
-    const client = createClient({ serviceId: 'test-service' });
+  test("createClient exports a factory function", () => {
+    const client = createClient({ serviceId: "test-service" });
 
     expect(client).toBeInstanceOf(BasicClient);
   });
 
-  test('startJob creates job with correct jobId format', () => {
-    const client = new BasicClient();
-    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, async () => 'ok');
-
-    const jobId = client.startJob('test.fn', '');
-
-    expect(jobId).toContain('test.fn-');
-    expect(typeof jobId).toBe('string');
-  });
-
-  test('invoke with metadata', async () => {
-    const client = new BasicClient();
-    const handler = jest.fn().mockResolvedValue('result');
-    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
-
-    const metadata = { 'x-custom-header': 'value' };
-    const result = await client.invoke('test.fn', '', metadata);
-
-    expect(result).toBe('result');
-    // Handler should receive metadata as JSON string in context
-    expect(handler).toHaveBeenCalledWith(expect.stringContaining('x-custom-header'), '');
-  });
-
-  test('getFunctionDescriptor returns correct descriptor', () => {
+  test("startJob creates job with correct jobId format", () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'test.fn', version: '2.0.0', category: 'cat', risk: 'low' },
-      async () => 'ok',
+      { id: "test.fn", version: "1.0.0" },
+      async () => "ok",
     );
 
-    const desc = client.getFunctionDescriptor('test.fn');
+    const jobId = client.startJob("test.fn", "");
+
+    expect(jobId).toContain("test.fn-");
+    expect(typeof jobId).toBe("string");
+  });
+
+  test("invoke with metadata", async () => {
+    const client = new BasicClient();
+    const handler = jest.fn().mockResolvedValue("result");
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
+
+    const metadata = { "x-custom-header": "value" };
+    const result = await client.invoke("test.fn", "", metadata);
+
+    expect(result).toBe("result");
+    // Handler should receive metadata as JSON string in context
+    expect(handler).toHaveBeenCalledWith(
+      expect.stringContaining("x-custom-header"),
+      "",
+    );
+  });
+
+  test("getFunctionDescriptor returns correct descriptor", () => {
+    const client = new BasicClient();
+    client.registerFunction(
+      { id: "test.fn", version: "2.0.0", category: "cat", risk: "low" },
+      async () => "ok",
+    );
+
+    const desc = client.getFunctionDescriptor("test.fn");
 
     expect(desc).toEqual({
-      id: 'test.fn',
-      version: '2.0.0',
-      category: 'cat',
-      risk: 'low',
+      id: "test.fn",
+      version: "2.0.0",
+      category: "cat",
+      risk: "low",
       entity: undefined,
       operation: undefined,
     });
   });
 
-  test('getFunctionDescriptor returns undefined for unknown function', () => {
+  test("getFunctionDescriptor returns undefined for unknown function", () => {
     const client = new BasicClient();
 
-    const desc = client.getFunctionDescriptor('unknown.fn');
+    const desc = client.getFunctionDescriptor("unknown.fn");
 
     expect(desc).toBeUndefined();
   });
 
-  test('getRegisterRequest builds correct request', () => {
+  test("getRegisterRequest builds correct request", () => {
     const client = new BasicClient({
-      serviceId: 'test-svc',
-      serviceVersion: '1.0.0',
+      serviceId: "test-svc",
+      serviceVersion: "1.0.0",
     });
-    client.registerFunction(
-      { id: 'f1', version: '1.0.0' },
-      async () => 'ok',
-    );
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
-    const req = client.getRegisterRequest('127.0.0.1:8080');
+    const req = client.getRegisterRequest("127.0.0.1:8080");
 
-    expect(req.serviceId).toBe('test-svc');
-    expect(req.version).toBe('1.0.0');
-    expect(req.rpcAddr).toBe('127.0.0.1:8080');
+    expect(req.serviceId).toBe("test-svc");
+    expect(req.version).toBe("1.0.0");
+    expect(req.rpcAddr).toBe("127.0.0.1:8080");
     expect(req.functions).toHaveLength(1);
-    expect(req.functions[0].id).toBe('f1');
+    expect(req.functions[0].id).toBe("f1");
   });
 
-  test('getManifestGzipped returns gzipped manifest', () => {
+  test("getManifestGzipped returns gzipped manifest", () => {
     const client = new BasicClient();
-    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
     const gzipped = client.getManifestGzipped();
 
@@ -388,39 +569,36 @@ describe('BasicClient', () => {
     expect(gzipped.length).toBeGreaterThan(0);
   });
 
-  test('startJob with metadata passes to handler', async () => {
+  test("startJob with metadata passes to handler", async () => {
     const client = new BasicClient();
-    let receivedContext = '';
+    let receivedContext = "";
     client.registerFunction(
-      { id: 'test.fn', version: '1.0.0' },
+      { id: "test.fn", version: "1.0.0" },
       async (ctx) => {
         receivedContext = ctx;
-        return 'done';
+        return "done";
       },
     );
 
-    const jobId = client.startJob('test.fn', 'payload', { key: 'value' });
+    const jobId = client.startJob("test.fn", "payload", { key: "value" });
 
     // Wait for job to complete
     for await (const _ of client.streamJob(jobId)) {
       // just consume events
     }
 
-    expect(receivedContext).toContain('key');
-    expect(receivedContext).toContain('value');
+    expect(receivedContext).toContain("key");
+    expect(receivedContext).toContain("value");
   });
 
-  test('cancelJob returns true when job exists', async () => {
+  test("cancelJob returns true when job exists", async () => {
     const client = new BasicClient();
-    client.registerFunction(
-      { id: 'test.fn', version: '1.0.0' },
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        return 'done';
-      },
-    );
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return "done";
+    });
 
-    const jobId = client.startJob('test.fn', '');
+    const jobId = client.startJob("test.fn", "");
 
     // Wait for started event
     const reader = client.streamJob(jobId)[Symbol.asyncIterator]();
@@ -430,9 +608,9 @@ describe('BasicClient', () => {
     expect(result).toBe(true);
   });
 
-  test('disconnect without transport', async () => {
+  test("disconnect without transport", async () => {
     const client = new BasicClient();
-    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
     // No transport set, just set connected
     (client as any).connected = true;
@@ -442,52 +620,49 @@ describe('BasicClient', () => {
     expect((client as any).connected).toBe(false);
   });
 
-  test('job handler with byte array result', async () => {
+  test("job handler with byte array result", async () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'byte.fn', version: '1.0.0' },
-      async () => 'binary-data' as string,
+      { id: "byte.fn", version: "1.0.0" },
+      async () => "binary-data" as string,
     );
 
-    const result = await client.invoke('byte.fn', '');
-    expect(result).toBe('binary-data');
+    const result = await client.invoke("byte.fn", "");
+    expect(result).toBe("binary-data");
   });
 
-  test('invoke with function returning number', async () => {
+  test("invoke with function returning number", async () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'number.fn', version: '1.0.0' },
-      async () => '42',
+      { id: "number.fn", version: "1.0.0" },
+      async () => "42",
     );
 
-    const result = await client.invoke('number.fn', '');
-    expect(result).toBe('42');
+    const result = await client.invoke("number.fn", "");
+    expect(result).toBe("42");
   });
 
-  test('getRegisterRequest with no rpc addr', () => {
+  test("getRegisterRequest with no rpc addr", () => {
     const client = new BasicClient({
-      serviceId: 'test-svc',
-      serviceVersion: '1.0.0',
+      serviceId: "test-svc",
+      serviceVersion: "1.0.0",
     });
-    client.registerFunction({ id: 'f1', version: '1.0.0' }, async () => 'ok');
+    client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
     const req = client.getRegisterRequest();
 
-    expect(req.rpcAddr).toBe('');
+    expect(req.rpcAddr).toBe("");
     expect(req.functions).toHaveLength(1);
   });
 
-  test('startJob with multiple rapid cancels', async () => {
+  test("startJob with multiple rapid cancels", async () => {
     const client = new BasicClient();
-    client.registerFunction(
-      { id: 'test.fn', version: '1.0.0' },
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return 'done';
-      },
-    );
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return "done";
+    });
 
-    const jobId = client.startJob('test.fn', '');
+    const jobId = client.startJob("test.fn", "");
 
     // Cancel multiple times - should be idempotent
     const result1 = client.cancelJob(jobId);
@@ -497,95 +672,97 @@ describe('BasicClient', () => {
     expect(result2).toBe(false); // Second cancel returns false since job is already cancelled
   });
 
-  test('function descriptor with all optional fields', () => {
+  test("function descriptor with all optional fields", () => {
     const client = new BasicClient();
     client.registerFunction(
       {
-        id: 'complete.fn',
-        version: '1.0.0',
-        name: 'Complete Function',
-        description: 'A complete function descriptor',
-        category: 'utils',
-        risk: 'low',
-        entity: 'system',
-        operation: 'read',
-        input_schema: { type: 'object' },
-        output_schema: { type: 'string' },
+        id: "complete.fn",
+        version: "1.0.0",
+        name: "Complete Function",
+        description: "A complete function descriptor",
+        category: "utils",
+        risk: "low",
+        entity: "system",
+        operation: "read",
+        input_schema: { type: "object" },
+        output_schema: { type: "string" },
       },
-      async () => 'ok',
+      async () => "ok",
     );
 
-    const desc = client.getFunctionDescriptor('complete.fn');
+    const desc = client.getFunctionDescriptor("complete.fn");
 
-    expect(desc?.id).toBe('complete.fn');
-    expect(desc?.version).toBe('1.0.0');
-    expect(desc?.category).toBe('utils');
-    expect(desc?.risk).toBe('low');
-    expect(desc?.entity).toBe('system');
-    expect(desc?.operation).toBe('read');
+    expect(desc?.id).toBe("complete.fn");
+    expect(desc?.version).toBe("1.0.0");
+    expect(desc?.category).toBe("utils");
+    expect(desc?.risk).toBe("low");
+    expect(desc?.entity).toBe("system");
+    expect(desc?.operation).toBe("read");
   });
 
-  test('invoke handler that returns Uint8Array', async () => {
+  test("invoke handler that returns Uint8Array", async () => {
     const client = new BasicClient();
     client.registerFunction(
-      { id: 'uint8.fn', version: '1.0.0' },
-      async () => 'binary-data' as string,
+      { id: "uint8.fn", version: "1.0.0" },
+      async () => "binary-data" as string,
     );
 
-    const result = await client.invoke('uint8.fn', '');
+    const result = await client.invoke("uint8.fn", "");
     expect(result).toBeDefined();
   });
 
-  test('job error event includes progress', async () => {
+  test("job error event includes progress", async () => {
     const client = new BasicClient();
-    client.registerFunction(
-      { id: 'error.fn', version: '1.0.0' },
-      async () => {
-        throw new Error('Test error');
-      },
-    );
+    client.registerFunction({ id: "error.fn", version: "1.0.0" }, async () => {
+      throw new Error("Test error");
+    });
 
-    const jobId = client.startJob('error.fn', '');
+    const jobId = client.startJob("error.fn", "");
     const events: any[] = [];
 
     for await (const evt of client.streamJob(jobId)) {
       events.push(evt);
     }
 
-    expect(events[1].type).toBe('error');
+    expect(events[1].type).toBe("error");
     expect(events[1].progress).toBe(0);
   });
 
-  test('invoke with empty metadata object', async () => {
+  test("invoke with empty metadata object", async () => {
     const client = new BasicClient();
-    const handler = jest.fn().mockResolvedValue('result');
-    client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+    const handler = jest.fn().mockResolvedValue("result");
+    client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
-    await client.invoke('test.fn', 'payload', {});
+    await client.invoke("test.fn", "payload", {});
 
     // Context now includes timeout from client config
-    expect(handler).toHaveBeenCalledWith(expect.stringContaining('timeout'), 'payload');
+    expect(handler).toHaveBeenCalledWith(
+      expect.stringContaining("timeout"),
+      "payload",
+    );
   });
 
-  describe('serve()', () => {
-    test('serve() requires at least one function', async () => {
-      const client = new BasicClient({ agentAddr: 'tcp://127.0.0.1:19090' });
+  describe("serve()", () => {
+    test("serve() requires at least one function", async () => {
+      const client = new BasicClient({ agentAddr: "tcp://127.0.0.1:19090" });
 
       // Should reject because no functions registered
       await expect(client.serve()).rejects.toThrow();
     });
 
-    test('serve() connects and waits indefinitely', async () => {
+    test("serve() connects and waits indefinitely", async () => {
       const client = new BasicClient();
       client.registerFunction(
-        { id: 'serve.fn', version: '1.0.0' },
-        async () => 'ok',
+        { id: "serve.fn", version: "1.0.0" },
+        async () => "ok",
       );
 
       // Mock the connect method to avoid actual connection
-      const connectSpy = jest.spyOn(client, 'connect').mockImplementation(async () => {
-        (client as any).connected = true;
-      });
+      const connectSpy = jest
+        .spyOn(client, "connect")
+        .mockImplementation(async () => {
+          (client as any).connected = true;
+        });
 
       // serve() should return a Promise
       const servePromise = client.serve();
@@ -594,7 +771,9 @@ describe('BasicClient', () => {
 
       // It should not resolve immediately
       let resolved = false;
-      servePromise.then(() => { resolved = true; });
+      servePromise.then(() => {
+        resolved = true;
+      });
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(resolved).toBe(false);
 
@@ -603,15 +782,15 @@ describe('BasicClient', () => {
       (client as any).connected = false;
     });
 
-    test('serveAsync is alias for serve', async () => {
+    test("serveAsync is alias for serve", async () => {
       const client = new BasicClient();
       client.registerFunction(
-        { id: 'serve.fn', version: '1.0.0' },
-        async () => 'ok',
+        { id: "serve.fn", version: "1.0.0" },
+        async () => "ok",
       );
 
       // Mock connect to avoid actual connection
-      jest.spyOn(client, 'connect').mockImplementation(async () => {
+      jest.spyOn(client, "connect").mockImplementation(async () => {
         (client as any).connected = true;
       });
 
@@ -628,23 +807,25 @@ describe('BasicClient', () => {
       (client as any).connected = false;
     });
 
-    test('serve() connects if not connected', async () => {
+    test("serve() connects if not connected", async () => {
       const client = new BasicClient();
       client.registerFunction(
-        { id: 'serve.fn', version: '1.0.0' },
-        async () => 'ok',
+        { id: "serve.fn", version: "1.0.0" },
+        async () => "ok",
       );
 
       // Mock the connect method BEFORE calling serve
-      const connectSpy = jest.spyOn(client, 'connect').mockImplementation(async () => {
-        (client as any).connected = true;
-      });
+      const connectSpy = jest
+        .spyOn(client, "connect")
+        .mockImplementation(async () => {
+          (client as any).connected = true;
+        });
       (client as any).connected = false;
 
       const servePromise = client.serve();
 
       // Give it a moment to call connect
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       expect(connectSpy).toHaveBeenCalled();
 
       // Cleanup
@@ -653,8 +834,8 @@ describe('BasicClient', () => {
     });
   });
 
-  describe('RetryConfig and ReconnectConfig', () => {
-    test('constructor includes default retry config', () => {
+  describe("RetryConfig and ReconnectConfig", () => {
+    test("constructor includes default retry config", () => {
       const client = new BasicClient();
       const config = (client as any).config;
 
@@ -668,20 +849,20 @@ describe('BasicClient', () => {
       expect(config.retry.retryableStatusCodes).toEqual([14, 13, 2, 10, 4]);
     });
 
-    test('constructor includes default reconnect config', () => {
+    test("constructor includes default reconnect config", () => {
       const client = new BasicClient();
       const config = (client as any).config;
 
       expect(config.reconnect).toBeDefined();
       expect(config.reconnect.enabled).toBe(true);
-      expect(config.reconnect.maxAttempts).toBe(0);  // Infinite
+      expect(config.reconnect.maxAttempts).toBe(0); // Infinite
       expect(config.reconnect.initialDelayMs).toBe(1000);
       expect(config.reconnect.maxDelayMs).toBe(30000);
       expect(config.reconnect.backoffMultiplier).toBe(2.0);
       expect(config.reconnect.jitterFactor).toBe(0.2);
     });
 
-    test('constructor merges user retry config', () => {
+    test("constructor merges user retry config", () => {
       const client = new BasicClient({
         retry: {
           maxAttempts: 5,
@@ -697,7 +878,7 @@ describe('BasicClient', () => {
       expect(config.retry.backoffMultiplier).toBe(2.0);
     });
 
-    test('constructor merges user reconnect config', () => {
+    test("constructor merges user reconnect config", () => {
       const client = new BasicClient({
         reconnect: {
           maxAttempts: 10,
@@ -713,10 +894,10 @@ describe('BasicClient', () => {
       expect(config.reconnect.backoffMultiplier).toBe(2.0);
     });
 
-    test('invoke accepts InvokeOptions with retry config', async () => {
+    test("invoke accepts InvokeOptions with retry config", async () => {
       const client = new BasicClient();
-      const handler = jest.fn().mockResolvedValue('result');
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      const handler = jest.fn().mockResolvedValue("result");
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions = {
         retry: {
@@ -724,39 +905,45 @@ describe('BasicClient', () => {
           initialDelayMs: 100,
         },
         headers: {
-          'x-custom': 'value',
+          "x-custom": "value",
         },
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
-      expect(handler).toHaveBeenCalledWith(expect.stringContaining('x-custom'), 'payload');
+      expect(result).toBe("result");
+      expect(handler).toHaveBeenCalledWith(
+        expect.stringContaining("x-custom"),
+        "payload",
+      );
     });
 
-    test('invoke accepts Record<string, string> as metadata (backward compatibility)', async () => {
+    test("invoke accepts Record<string, string> as metadata (backward compatibility)", async () => {
       const client = new BasicClient();
-      const handler = jest.fn().mockResolvedValue('result');
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      const handler = jest.fn().mockResolvedValue("result");
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const metadata = {
-        'x-custom': 'value',
+        "x-custom": "value",
       };
 
-      const result = await client.invoke('test.fn', 'payload', metadata);
+      const result = await client.invoke("test.fn", "payload", metadata);
 
-      expect(result).toBe('result');
-      expect(handler).toHaveBeenCalledWith(expect.stringContaining('x-custom'), 'payload');
+      expect(result).toBe("result");
+      expect(handler).toHaveBeenCalledWith(
+        expect.stringContaining("x-custom"),
+        "payload",
+      );
     });
 
-    test('startJob accepts InvokeOptions', async () => {
+    test("startJob accepts InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       client.registerFunction(
-        { id: 'test.fn', version: '1.0.0' },
+        { id: "test.fn", version: "1.0.0" },
         async (ctx) => {
           receivedContext = ctx;
-          return 'done';
+          return "done";
         },
       );
 
@@ -765,22 +952,22 @@ describe('BasicClient', () => {
           maxAttempts: 5,
         },
         headers: {
-          'x-custom': 'value',
+          "x-custom": "value",
         },
       };
 
-      const jobId = client.startJob('test.fn', 'payload', invokeOptions);
+      const jobId = client.startJob("test.fn", "payload", invokeOptions);
 
       // Wait for job to complete
       for await (const _ of client.streamJob(jobId)) {
         // consume events
       }
 
-      expect(receivedContext).toContain('x-custom');
-      expect(receivedContext).toContain('value');
+      expect(receivedContext).toContain("x-custom");
+      expect(receivedContext).toContain("value");
     });
 
-    test('RetryConfig can be disabled', () => {
+    test("RetryConfig can be disabled", () => {
       const client = new BasicClient({
         retry: {
           enabled: false,
@@ -791,7 +978,7 @@ describe('BasicClient', () => {
       expect(config.retry.enabled).toBe(false);
     });
 
-    test('ReconnectConfig can be disabled', () => {
+    test("ReconnectConfig can be disabled", () => {
       const client = new BasicClient({
         reconnect: {
           enabled: false,
@@ -803,108 +990,108 @@ describe('BasicClient', () => {
     });
   });
 
-  describe('InvokeOptions - idempotencyKey and timeout', () => {
-    test('invoke accepts idempotencyKey in InvokeOptions', async () => {
+  describe("InvokeOptions - idempotencyKey and timeout", () => {
+    test("invoke accepts idempotencyKey in InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       const handler = jest.fn().mockImplementation(async (ctx) => {
         receivedContext = ctx;
-        return 'result';
+        return "result";
       });
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions = {
-        idempotencyKey: 'unique-key-123',
+        idempotencyKey: "unique-key-123",
         headers: {
-          'x-custom': 'value',
+          "x-custom": "value",
         },
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       expect(handler).toHaveBeenCalled();
       const context = JSON.parse(receivedContext);
-      expect(context.idempotency_key).toBe('unique-key-123');
-      expect(context['x-custom']).toBe('value');
+      expect(context.idempotency_key).toBe("unique-key-123");
+      expect(context["x-custom"]).toBe("value");
     });
 
-    test('invoke accepts timeout in InvokeOptions', async () => {
+    test("invoke accepts timeout in InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       const handler = jest.fn().mockImplementation(async (ctx) => {
         receivedContext = ctx;
-        return 'result';
+        return "result";
       });
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions = {
         timeout: 10000,
         headers: {},
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       const context = JSON.parse(receivedContext);
       expect(context.timeout).toBe(10000);
     });
 
-    test('invoke uses client-level timeout when not specified in options', async () => {
+    test("invoke uses client-level timeout when not specified in options", async () => {
       const client = new BasicClient({ timeout: 5000 });
-      let receivedContext = '';
+      let receivedContext = "";
       const handler = jest.fn().mockImplementation(async (ctx) => {
         receivedContext = ctx;
-        return 'result';
+        return "result";
       });
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
-      const result = await client.invoke('test.fn', 'payload', {});
+      const result = await client.invoke("test.fn", "payload", {});
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       const context = JSON.parse(receivedContext);
       expect(context.timeout).toBe(5000);
     });
 
-    test('invoke timeout overrides client-level timeout', async () => {
+    test("invoke timeout overrides client-level timeout", async () => {
       const client = new BasicClient({ timeout: 5000 });
-      let receivedContext = '';
+      let receivedContext = "";
       const handler = jest.fn().mockImplementation(async (ctx) => {
         receivedContext = ctx;
-        return 'result';
+        return "result";
       });
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions = {
         timeout: 10000,
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       const context = JSON.parse(receivedContext);
-      expect(context.timeout).toBe(10000);  // Override should work
+      expect(context.timeout).toBe(10000); // Override should work
     });
 
-    test('startJob accepts idempotencyKey in InvokeOptions', async () => {
+    test("startJob accepts idempotencyKey in InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       client.registerFunction(
-        { id: 'test.fn', version: '1.0.0' },
+        { id: "test.fn", version: "1.0.0" },
         async (ctx) => {
           receivedContext = ctx;
-          return 'done';
+          return "done";
         },
       );
 
       const invokeOptions = {
-        idempotencyKey: 'job-key-456',
+        idempotencyKey: "job-key-456",
         headers: {
-          'x-job-id': '123',
+          "x-job-id": "123",
         },
       };
 
-      const jobId = client.startJob('test.fn', 'payload', invokeOptions);
+      const jobId = client.startJob("test.fn", "payload", invokeOptions);
 
       // Wait for job to complete
       for await (const _ of client.streamJob(jobId)) {
@@ -912,18 +1099,18 @@ describe('BasicClient', () => {
       }
 
       const context = JSON.parse(receivedContext);
-      expect(context.idempotency_key).toBe('job-key-456');
-      expect(context['x-job-id']).toBe('123');
+      expect(context.idempotency_key).toBe("job-key-456");
+      expect(context["x-job-id"]).toBe("123");
     });
 
-    test('startJob accepts timeout in InvokeOptions', async () => {
+    test("startJob accepts timeout in InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       client.registerFunction(
-        { id: 'test.fn', version: '1.0.0' },
+        { id: "test.fn", version: "1.0.0" },
         async (ctx) => {
           receivedContext = ctx;
-          return 'done';
+          return "done";
         },
       );
 
@@ -931,7 +1118,7 @@ describe('BasicClient', () => {
         timeout: 15000,
       };
 
-      const jobId = client.startJob('test.fn', 'payload', invokeOptions);
+      const jobId = client.startJob("test.fn", "payload", invokeOptions);
 
       // Wait for job to complete
       for await (const _ of client.streamJob(jobId)) {
@@ -942,21 +1129,21 @@ describe('BasicClient', () => {
       expect(context.timeout).toBe(15000);
     });
 
-    test('invoke with complete InvokeOptions', async () => {
+    test("invoke with complete InvokeOptions", async () => {
       const client = new BasicClient();
-      let receivedContext = '';
+      let receivedContext = "";
       const handler = jest.fn().mockImplementation(async (ctx) => {
         receivedContext = ctx;
-        return 'result';
+        return "result";
       });
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions: InvokeOptions = {
-        idempotencyKey: 'complete-key',
+        idempotencyKey: "complete-key",
         timeout: 20000,
         headers: {
-          'x-request-id': 'req-789',
-          'x-game-id': 'game-123',
+          "x-request-id": "req-789",
+          "x-game-id": "game-123",
         },
         retry: {
           maxAttempts: 5,
@@ -964,117 +1151,123 @@ describe('BasicClient', () => {
         },
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       const context = JSON.parse(receivedContext);
-      expect(context.idempotency_key).toBe('complete-key');
+      expect(context.idempotency_key).toBe("complete-key");
       expect(context.timeout).toBe(20000);
-      expect(context['x-request-id']).toBe('req-789');
-      expect(context['x-game-id']).toBe('game-123');
+      expect(context["x-request-id"]).toBe("req-789");
+      expect(context["x-game-id"]).toBe("game-123");
     });
 
-    test('isInvokeOptions correctly identifies InvokeOptions with idempotencyKey', async () => {
+    test("isInvokeOptions correctly identifies InvokeOptions with idempotencyKey", async () => {
       const client = new BasicClient();
-      const handler = jest.fn().mockResolvedValue('result');
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      const handler = jest.fn().mockResolvedValue("result");
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       // InvokeOptions with idempotencyKey
-      const options1 = { idempotencyKey: 'key-123' };
-      const result1 = await client.invoke('test.fn', 'payload', options1);
-      expect(result1).toBe('result');
+      const options1 = { idempotencyKey: "key-123" };
+      const result1 = await client.invoke("test.fn", "payload", options1);
+      expect(result1).toBe("result");
 
       // InvokeOptions with timeout
       const options2 = { timeout: 5000 };
-      const result2 = await client.invoke('test.fn', 'payload', options2);
-      expect(result2).toBe('result');
+      const result2 = await client.invoke("test.fn", "payload", options2);
+      expect(result2).toBe("result");
 
       // Plain Record<string, string>
-      const metadata = { 'x-custom': 'value' };
-      const result3 = await client.invoke('test.fn', 'payload', metadata);
-      expect(result3).toBe('result');
+      const metadata = { "x-custom": "value" };
+      const result3 = await client.invoke("test.fn", "payload", metadata);
+      expect(result3).toBe("result");
     });
 
-    test('InvokeOptions without idempotencyKey or timeout still works', async () => {
+    test("InvokeOptions without idempotencyKey or timeout still works", async () => {
       const client = new BasicClient();
-      const handler = jest.fn().mockResolvedValue('result');
-      client.registerFunction({ id: 'test.fn', version: '1.0.0' }, handler);
+      const handler = jest.fn().mockResolvedValue("result");
+      client.registerFunction({ id: "test.fn", version: "1.0.0" }, handler);
 
       const invokeOptions = {
         headers: {
-          'x-custom': 'value',
+          "x-custom": "value",
         },
       };
 
-      const result = await client.invoke('test.fn', 'payload', invokeOptions);
+      const result = await client.invoke("test.fn", "payload", invokeOptions);
 
-      expect(result).toBe('result');
+      expect(result).toBe("result");
       expect(handler).toHaveBeenCalled();
     });
   });
 
-  describe('Configuration Options - localListen and controlAddr', () => {
-    test('localListen can be set', () => {
+  describe("Configuration Options - localListen and controlAddr", () => {
+    test("localListen can be set", () => {
       const client = new BasicClient({
-        localListen: '0.0.0.0:8080',
+        localListen: "0.0.0.0:8080",
       });
-      expect((client as any).config.localListen).toBe('0.0.0.0:8080');
+      expect((client as any).config.localListen).toBe("0.0.0.0:8080");
     });
 
-    test('localListen defaults to empty string', () => {
+    test("localListen defaults to empty string", () => {
       const client = new BasicClient();
-      expect((client as any).config.localListen).toBe('');
+      expect((client as any).config.localListen).toBe("");
     });
 
-    test('controlAddr can be set', () => {
+    test("controlAddr can be set", () => {
       const client = new BasicClient({
-        controlAddr: 'localhost:9090',
+        controlAddr: "localhost:9090",
       });
-      expect((client as any).config.controlAddr).toBe('localhost:9090');
+      expect((client as any).config.controlAddr).toBe("localhost:9090");
     });
 
-    test('controlAddr defaults to empty string', () => {
+    test("controlAddr defaults to empty string", () => {
       const client = new BasicClient();
-      expect((client as any).config.controlAddr).toBe('');
+      expect((client as any).config.controlAddr).toBe("");
     });
 
-    test('both localListen and controlAddr can be set together', () => {
+    test("both localListen and controlAddr can be set together", () => {
       const client = new BasicClient({
-        localListen: '127.0.0.1:0',
-        controlAddr: 'tcp://127.0.0.1:8080',
+        localListen: "127.0.0.1:0",
+        controlAddr: "tcp://127.0.0.1:8080",
       });
-      expect((client as any).config.localListen).toBe('127.0.0.1:0');
-      expect((client as any).config.controlAddr).toBe('tcp://127.0.0.1:8080');
+      expect((client as any).config.localListen).toBe("127.0.0.1:0");
+      expect((client as any).config.controlAddr).toBe("tcp://127.0.0.1:8080");
     });
   });
 
-  describe('Configuration Options - Logging', () => {
-    test('disableLogging can be set to true', () => {
+  describe("Configuration Options - Logging", () => {
+    test("disableLogging can be set to true", () => {
       const client = new BasicClient({
         disableLogging: true,
       });
       expect((client as any).config.disableLogging).toBe(true);
     });
 
-    test('disableLogging defaults to false', () => {
+    test("disableLogging defaults to false", () => {
       const client = new BasicClient();
       expect((client as any).config.disableLogging).toBe(false);
     });
 
-    test('debugLogging can be set to true', () => {
+    test("debugLogging can be set to true", () => {
       const client = new BasicClient({
         debugLogging: true,
       });
       expect((client as any).config.debugLogging).toBe(true);
     });
 
-    test('debugLogging defaults to false', () => {
+    test("debugLogging defaults to false", () => {
       const client = new BasicClient();
       expect((client as any).config.debugLogging).toBe(false);
     });
 
-    test('logLevel can be set to valid values', () => {
-      const validLevels: Array<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'OFF'> = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'OFF'];
+    test("logLevel can be set to valid values", () => {
+      const validLevels: Array<"DEBUG" | "INFO" | "WARN" | "ERROR" | "OFF"> = [
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR",
+        "OFF",
+      ];
 
       for (const level of validLevels) {
         const client = new BasicClient({ logLevel: level });
@@ -1082,20 +1275,20 @@ describe('BasicClient', () => {
       }
     });
 
-    test('logLevel defaults to INFO', () => {
+    test("logLevel defaults to INFO", () => {
       const client = new BasicClient();
-      expect((client as any).config.logLevel).toBe('INFO');
+      expect((client as any).config.logLevel).toBe("INFO");
     });
 
-    test('all logging options can be set together', () => {
+    test("all logging options can be set together", () => {
       const client = new BasicClient({
         disableLogging: false,
         debugLogging: true,
-        logLevel: 'DEBUG',
+        logLevel: "DEBUG",
       });
       expect((client as any).config.disableLogging).toBe(false);
       expect((client as any).config.debugLogging).toBe(true);
-      expect((client as any).config.logLevel).toBe('DEBUG');
+      expect((client as any).config.logLevel).toBe("DEBUG");
     });
   });
 });

@@ -4,8 +4,5 @@
     "noEmit": true,
     "types": ["node", "jest"]
   },
-  "include": [
-    "src/**/*.ts",
-    "generated/**/*.ts"
-  ]
+  "include": ["src/**/*.ts", "generated/**/*.ts"]
 }

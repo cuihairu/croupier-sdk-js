@@ -7,14 +7,14 @@
  * Uses the '@rustup/nng' npm package for NNG bindings.
  */
 
-import { Socket, SocketOptions } from '@rustup/nng';
+import { Socket, SocketOptions } from "@rustup/nng";
 import {
   HEADER_SIZE,
   ParsedMessage,
   getResponseMsgId,
   newMessage,
   parseMessage,
-} from './protocol';
+} from "./protocol";
 
 /**
  * NNG-based transport client using REQ/REP pattern.
@@ -26,7 +26,10 @@ export class NNGTransport {
   private connected: boolean = false;
   private requestId: number = 0;
 
-  constructor(address: string = 'tcp://127.0.0.1:19090', timeoutMs: number = 30000) {
+  constructor(
+    address: string = "tcp://127.0.0.1:19090",
+    timeoutMs: number = 30000,
+  ) {
     this.address = address;
     this.timeoutMs = timeoutMs;
   }
@@ -81,7 +84,7 @@ export class NNGTransport {
    */
   call(msgType: number, data: Buffer): [number, Buffer] {
     if (!this.connected || !this.socket) {
-      throw new Error('Not connected');
+      throw new Error("Not connected");
     }
 
     // Generate request ID
@@ -101,7 +104,7 @@ export class NNGTransport {
     if (parsed.msgId !== expectedRespType) {
       throw new Error(
         `Unexpected response type: expected 0x${expectedRespType.toString(16)}, ` +
-          `got 0x${parsed.msgId.toString(16)}`
+          `got 0x${parsed.msgId.toString(16)}`,
       );
     }
 
@@ -117,9 +120,14 @@ export class NNGServer {
   private timeoutMs: number;
   private disposable: ReturnType<typeof Socket.recvMessage> | null = null;
   private running: boolean = false;
-  private handler: ((msgType: number, reqId: number, body: Buffer) => Buffer) | null = null;
+  private handler:
+    | ((msgType: number, reqId: number, body: Buffer) => Buffer)
+    | null = null;
 
-  constructor(address: string = 'tcp://127.0.0.1:19090', timeoutMs: number = 30000) {
+  constructor(
+    address: string = "tcp://127.0.0.1:19090",
+    timeoutMs: number = 30000,
+  ) {
     this.address = address;
     this.timeoutMs = timeoutMs;
   }
@@ -127,7 +135,9 @@ export class NNGServer {
   /**
    * Set the message handler.
    */
-  setHandler(handler: (msgType: number, reqId: number, body: Buffer) => Buffer): void {
+  setHandler(
+    handler: (msgType: number, reqId: number, body: Buffer) => Buffer,
+  ): void {
     this.handler = handler;
   }
 
@@ -155,16 +165,20 @@ export class NNGServer {
         let responseBody: Buffer = Buffer.alloc(0);
         if (this.handler) {
           try {
-            responseBody = this.handler(parsed.msgId, parsed.reqId, parsed.body);
+            responseBody = this.handler(
+              parsed.msgId,
+              parsed.reqId,
+              parsed.body,
+            );
           } catch (e) {
-            console.error('Handler error:', e);
+            console.error("Handler error:", e);
           }
         }
 
         // Build and return response
         const respMsgType = getResponseMsgId(parsed.msgId);
         return newMessage(respMsgType, parsed.reqId, responseBody);
-      }
+      },
     );
 
     this.running = true;

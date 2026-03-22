@@ -106,7 +106,10 @@ export class MainThreadDispatcher {
    * @param callback - The callback to execute
    * @param executeImmediatelyIfInitialized - If true and initialized, execute immediately (default: true)
    */
-  public enqueue(callback: Callback | null, executeImmediatelyIfInitialized = true): void {
+  public enqueue(
+    callback: Callback | null,
+    executeImmediatelyIfInitialized = true,
+  ): void {
     if (!callback) {
       return;
     }
@@ -117,7 +120,10 @@ export class MainThreadDispatcher {
       try {
         callback();
       } catch (error) {
-        console.error('[MainThreadDispatcher] Callback error (immediate):', error);
+        console.error(
+          "[MainThreadDispatcher] Callback error (immediate):",
+          error,
+        );
       }
       return;
     }
@@ -131,7 +137,10 @@ export class MainThreadDispatcher {
    * @param callback - The callback to execute
    * @param data - The data to pass to the callback
    */
-  public enqueueWithData<T>(callback: CallbackWithData<T> | null, data: T): void {
+  public enqueueWithData<T>(
+    callback: CallbackWithData<T> | null,
+    data: T,
+  ): void {
     if (!callback) {
       return;
     }
@@ -185,7 +194,7 @@ export class MainThreadDispatcher {
       try {
         callback();
       } catch (error) {
-        console.error('[MainThreadDispatcher] Callback error:', error);
+        console.error("[MainThreadDispatcher] Callback error:", error);
       }
       processed++;
     }

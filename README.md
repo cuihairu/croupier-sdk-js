@@ -57,29 +57,29 @@ Croupier Node.js SDK 是 [Croupier](https://github.com/cuihairu/croupier) 游戏
 
 ## 主项目
 
-| 项目 | 描述 | 链接 |
-|------|------|------|
-| **Croupier** | 游戏后端平台主项目 | [cuihairu/croupier](https://github.com/cuihairu/croupier) |
+| 项目               | 描述                      | 链接                                                                  |
+| ------------------ | ------------------------- | --------------------------------------------------------------------- |
+| **Croupier**       | 游戏后端平台主项目        | [cuihairu/croupier](https://github.com/cuihairu/croupier)             |
 | **Croupier Proto** | 协议定义（Protobuf/gRPC） | [cuihairu/croupier-proto](https://github.com/cuihairu/croupier-proto) |
 
 ## 其他语言 SDK
 
-| 语言 | 仓库 | Nightly | Release | Docs | Coverage |
-| --- | --- | --- | --- | --- | --- |
-| C++ | [croupier-sdk-cpp](https://github.com/cuihairu/croupier-sdk-cpp) | [![nightly](https://github.com/cuihairu/croupier-sdk-cpp/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-cpp/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-cpp)](https://github.com/cuihairu/croupier-sdk-cpp/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-cpp/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-cpp/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-cpp) |
-| Go | [croupier-sdk-go](https://github.com/cuihairu/croupier-sdk-go) | [![nightly](https://github.com/cuihairu/croupier-sdk-go/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-go/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-go)](https://github.com/cuihairu/croupier-sdk-go/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-go/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-go/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-go) |
-| Java | [croupier-sdk-java](https://github.com/cuihairu/croupier-sdk-java) | [![nightly](https://github.com/cuihairu/croupier-sdk-java/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-java/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-java)](https://github.com/cuihairu/croupier-sdk-java/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-java/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-java/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-java) |
+| 语言   | 仓库                                                                   | Nightly                                                                                                                                                                              | Release                                                                                                                                      | Docs                                                                                                              | Coverage                                                                                                                                         |
+| ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| C++    | [croupier-sdk-cpp](https://github.com/cuihairu/croupier-sdk-cpp)       | [![nightly](https://github.com/cuihairu/croupier-sdk-cpp/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-cpp/actions/workflows/nightly.yml)       | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-cpp)](https://github.com/cuihairu/croupier-sdk-cpp/releases)       | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-cpp/)    | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-cpp/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-cpp)       |
+| Go     | [croupier-sdk-go](https://github.com/cuihairu/croupier-sdk-go)         | [![nightly](https://github.com/cuihairu/croupier-sdk-go/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-go/actions/workflows/nightly.yml)         | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-go)](https://github.com/cuihairu/croupier-sdk-go/releases)         | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-go/)     | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-go/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-go)         |
+| Java   | [croupier-sdk-java](https://github.com/cuihairu/croupier-sdk-java)     | [![nightly](https://github.com/cuihairu/croupier-sdk-java/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-java/actions/workflows/nightly.yml)     | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-java)](https://github.com/cuihairu/croupier-sdk-java/releases)     | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-java/)   | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-java/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-java)     |
 | Python | [croupier-sdk-python](https://github.com/cuihairu/croupier-sdk-python) | [![nightly](https://github.com/cuihairu/croupier-sdk-python/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-python/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-python)](https://github.com/cuihairu/croupier-sdk-python/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-python/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-python/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-python) |
-| C# | [croupier-sdk-csharp](https://github.com/cuihairu/croupier-sdk-csharp) | [![nightly](https://github.com/cuihairu/croupier-sdk-csharp/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-csharp/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-csharp)](https://github.com/cuihairu/croupier-sdk-csharp/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-csharp/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-csharp/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-csharp) |
-| Lua | [croupier-sdk-cpp](https://github.com/cuihairu/croupier-sdk-cpp) | - | - | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-cpp/) | - |
+| C#     | [croupier-sdk-csharp](https://github.com/cuihairu/croupier-sdk-csharp) | [![nightly](https://github.com/cuihairu/croupier-sdk-csharp/actions/workflows/nightly.yml/badge.svg)](https://github.com/cuihairu/croupier-sdk-csharp/actions/workflows/nightly.yml) | [![release](https://img.shields.io/github/v/release/cuihairu/croupier-sdk-csharp)](https://github.com/cuihairu/croupier-sdk-csharp/releases) | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-csharp/) | [![codecov](https://codecov.io/gh/cuihairu/croupier-sdk-csharp/branch/main/graph/badge.svg)](https://codecov.io/gh/cuihairu/croupier-sdk-csharp) |
+| Lua    | [croupier-sdk-cpp](https://github.com/cuihairu/croupier-sdk-cpp)       | -                                                                                                                                                                                    | -                                                                                                                                            | [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://cuihairu.github.io/croupier-sdk-cpp/)    | -                                                                                                                                                |
 
 ## 支持平台
 
-| 平台 | 架构 | 状态 |
-|------|------|------|
-| **Windows** | x64 | ✅ 支持 |
-| **Linux** | x64, ARM64 | ✅ 支持 |
-| **macOS** | x64, ARM64 (Apple Silicon) | ✅ 支持 |
+| 平台        | 架构                       | 状态    |
+| ----------- | -------------------------- | ------- |
+| **Windows** | x64                        | ✅ 支持 |
+| **Linux**   | x64, ARM64                 | ✅ 支持 |
+| **macOS**   | x64, ARM64 (Apple Silicon) | ✅ 支持 |
 
 ## 核心特性
 
@@ -106,13 +106,13 @@ pnpm run build
 ### 基础使用
 
 ```ts
-import { createClient, FunctionDescriptor, FunctionHandler } from './src';
+import { createClient, FunctionDescriptor, FunctionHandler } from "./src";
 
 const config = {
-  agentAddr: '127.0.0.1:19090',
-  controlAddr: '127.0.0.1:19100', // 可选：上传 provider manifest
-  serviceId: 'inventory-service',
-  serviceVersion: '1.2.3',
+  agentAddr: "127.0.0.1:19090",
+  controlAddr: "127.0.0.1:19100", // 可选：上传 provider manifest
+  serviceId: "inventory-service",
+  serviceVersion: "1.2.3",
 };
 
 const client = createClient(config);
@@ -120,20 +120,20 @@ const client = createClient(config);
 const addItem: FunctionHandler = async (_ctx, payload) => {
   const request = JSON.parse(payload);
   // ... 修改状态 ...
-  return JSON.stringify({ status: 'ok', item_id: request.item_id });
+  return JSON.stringify({ status: "ok", item_id: request.item_id });
 };
 
 const descriptor: FunctionDescriptor = {
-  id: 'inventory.add_item',
-  version: '1.0.0',
-  description: '向玩家背包添加物品',
+  id: "inventory.add_item",
+  version: "1.0.0",
+  description: "向玩家背包添加物品",
   input_schema: {
-    type: 'object',
-    required: ['player_id', 'item_id'],
+    type: "object",
+    required: ["player_id", "item_id"],
     properties: {
-      player_id: { type: 'string' },
-      item_id: { type: 'string' },
-      quantity: { type: 'number', default: 1 },
+      player_id: { type: "string" },
+      item_id: { type: "string" },
+      quantity: { type: "number", default: 1 },
     },
   },
 };
@@ -141,7 +141,7 @@ const descriptor: FunctionDescriptor = {
 await client.registerFunction(descriptor, addItem);
 await client.connect();
 
-console.log('✅ inventory.add_item 已注册');
+console.log("✅ inventory.add_item 已注册");
 ```
 
 ## 使用示例
@@ -160,16 +160,17 @@ pnpm dev
 
 ```ts
 const descriptor: FunctionDescriptor = {
-  id: 'player.ban',           // 函数 ID
-  version: '1.0.0',           // 语义化版本
-  description: '封禁玩家',     // 描述
-  input_schema: {             // JSON Schema（可选）
-    type: 'object',
-    required: ['player_id', 'reason'],
+  id: "player.ban", // 函数 ID
+  version: "1.0.0", // 语义化版本
+  description: "封禁玩家", // 描述
+  input_schema: {
+    // JSON Schema（可选）
+    type: "object",
+    required: ["player_id", "reason"],
     properties: {
-      player_id: { type: 'string' },
-      reason: { type: 'string' },
-      duration: { type: 'number' },
+      player_id: { type: "string" },
+      reason: { type: "string" },
+      duration: { type: "number" },
     },
   },
 };
@@ -185,7 +186,7 @@ const handler: FunctionHandler = async (context, payload) => {
 
   // 处理业务逻辑...
 
-  return JSON.stringify({ status: 'success' });
+  return JSON.stringify({ status: "success" });
 };
 ```
 
@@ -198,6 +199,7 @@ Game Server → Node.js SDK → Agent → Croupier Server
 ```
 
 SDK 实现两层注册系统：
+
 1. **SDK → Agent**: 使用 `LocalControlService`（来自 `local.proto`）
 2. **Agent → Server**: 使用 `ControlService`（来自 `control.proto`）
 
@@ -218,13 +220,13 @@ croupier-sdk-js/
 
 ```ts
 interface ClientConfig {
-  agentAddr: string;        // Agent gRPC 地址
-  controlAddr?: string;     // 可选控制面地址（用于 manifest 上传）
-  serviceId: string;        // 服务标识符
-  serviceVersion: string;   // 服务版本
-  gameId?: string;          // 游戏标识符
-  env?: string;             // 环境（dev/staging/prod）
-  insecure?: boolean;       // 使用不安全的 gRPC
+  agentAddr: string; // Agent gRPC 地址
+  controlAddr?: string; // 可选控制面地址（用于 manifest 上传）
+  serviceId: string; // 服务标识符
+  serviceVersion: string; // 服务版本
+  gameId?: string; // 游戏标识符
+  env?: string; // 环境（dev/staging/prod）
+  insecure?: boolean; // 使用不安全的 gRPC
 }
 ```
 
@@ -233,7 +235,10 @@ interface ClientConfig {
 ```ts
 interface CroupierClient {
   // 函数注册
-  registerFunction(descriptor: FunctionDescriptor, handler: FunctionHandler): Promise<void>;
+  registerFunction(
+    descriptor: FunctionDescriptor,
+    handler: FunctionHandler,
+  ): Promise<void>;
 
   // 连接管理
   connect(): Promise<void>;

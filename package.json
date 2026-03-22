@@ -41,7 +41,7 @@
     "lint": "eslint src/ examples/ --ext .ts,.js",
     "lint:fix": "eslint src/ examples/ --ext .ts,.js --fix",
     "format": "prettier --write 'src/**/*.ts' 'examples/**/*.js'",
-    "format:check": "prettier --check 'src/**/*.ts' 'examples/**/*.js'",
+    "format:check": "prettier --check src/**/*.ts examples/**/*.js",
     "dev": "ts-node-dev --respawn examples/main.ts",
     "start": "node dist/examples/main.js",
     "prepare": "husky"

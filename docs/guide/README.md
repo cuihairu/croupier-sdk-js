@@ -16,23 +16,26 @@ npm install @croupier/sdk
 ### TypeScript
 
 ```typescript
-import { CroupierClient, ClientConfig } from '@croupier/sdk';
+import { CroupierClient, ClientConfig } from "@croupier/sdk";
 
 const config: ClientConfig = {
-  agentAddr: 'localhost:19090',
-  gameId: 'demo-game',
-  env: 'development',
+  agentAddr: "localhost:19090",
+  gameId: "demo-game",
+  env: "development",
   insecure: true,
 };
 
 const client = new CroupierClient(config);
 
-client.registerFunction({
-  id: 'hello.world',
-  version: '0.1.0',
-}, async (ctx, payload) => {
-  return { success: true };
-});
+client.registerFunction(
+  {
+    id: "hello.world",
+    version: "0.1.0",
+  },
+  async (ctx, payload) => {
+    return { success: true };
+  },
+);
 
 await client.serve();
 ```
@@ -40,20 +43,23 @@ await client.serve();
 ### JavaScript
 
 ```javascript
-const { CroupierClient } = require('@croupier/sdk');
+const { CroupierClient } = require("@croupier/sdk");
 
 const client = new CroupierClient({
-  agentAddr: 'localhost:19090',
-  gameId: 'demo-game',
-  env: 'development',
+  agentAddr: "localhost:19090",
+  gameId: "demo-game",
+  env: "development",
 });
 
-client.registerFunction({
-  id: 'hello.world',
-  version: '0.1.0',
-}, async (ctx, payload) => {
-  return { success: true };
-});
+client.registerFunction(
+  {
+    id: "hello.world",
+    version: "0.1.0",
+  },
+  async (ctx, payload) => {
+    return { success: true };
+  },
+);
 
 client.serve();
 ```
