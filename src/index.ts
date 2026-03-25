@@ -14,6 +14,7 @@ import {
   MSG_HEARTBEAT_LOCAL_REQUEST,
   MSG_INVOKE_REQUEST,
   MSG_INVOKE_RESPONSE,
+  MSG_REGISTER_CAPABILITIES_REQ,
   MSG_REGISTER_LOCAL_REQUEST,
   MSG_START_JOB_REQUEST,
   MSG_START_JOB_RESPONSE,
@@ -58,6 +59,20 @@ message HeartbeatRequest {
 }
 
 message HeartbeatResponse {}
+
+message ProviderMeta {
+  string id = 1;
+  string version = 2;
+  string lang = 3;
+  string sdk = 4;
+}
+
+message RegisterCapabilitiesRequest {
+  ProviderMeta provider = 1;
+  bytes manifest_json_gz = 2;
+}
+
+message RegisterCapabilitiesResponse {}
 `;
 const providerRoot = protobuf.parse(PROVIDER_PROTO).root;
 const RegisterLocalRequestMessage = providerRoot.lookupType(
@@ -68,6 +83,12 @@ const RegisterLocalResponseMessage = providerRoot.lookupType(
 );
 const HeartbeatRequestMessage = providerRoot.lookupType(
   "croupier.sdk.v1.HeartbeatRequest",
+);
+const RegisterCapabilitiesRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterCapabilitiesRequest",
+);
+const RegisterCapabilitiesResponseMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterCapabilitiesResponse",
 );
 
 /**
@@ -261,6 +282,7 @@ export interface ClientConfig {
   controlAddr?: string;
 
   // === Service Identity ===
+  agentId?: string;
   serviceId?: string;
   serviceVersion?: string;
 
@@ -280,6 +302,7 @@ export interface ClientConfig {
   certFile?: string;
   keyFile?: string;
   caFile?: string;
+  serverName?: string;
 
   // === Authentication ===
   authToken?: string;
@@ -414,12 +437,13 @@ export class BasicClient implements CroupierClient {
       controlAddr: "",
 
       // Service Identity
+      agentId: "",
       serviceId: `node-sdk-${randomUUID()}`,
       serviceVersion: "1.0.0",
 
       // Game Context
       gameId: "",
-      env: "production",
+      env: "development",
 
       // Heartbeat
       heartbeatIntervalSeconds: 60,
@@ -428,11 +452,12 @@ export class BasicClient implements CroupierClient {
       providerLang: "node",
       providerSdk: "croupier-js-sdk",
 
-      // TLS (defaults: secure TLS)
-      insecure: false,
+      // TLS (defaults: insecure local development)
+      insecure: true,
       certFile: "",
       keyFile: "",
       caFile: "",
+      serverName: "",
 
       // Authentication
       authToken: "",
@@ -634,7 +659,7 @@ export class BasicClient implements CroupierClient {
     // Use per-invocation timeout if specified, otherwise use client-level timeout
     const timeout = options.timeout ?? this.config.timeout;
 
-    const metadata = options.headers || {};
+    const metadata = this.buildInvocationMetadata(options.headers);
 
     // If transport is connected, use remote invocation
     if (this.connected && this.transport) {
@@ -695,7 +720,7 @@ export class BasicClient implements CroupierClient {
     // Use per-invocation timeout if specified, otherwise use client-level timeout
     const timeout = options.timeout ?? this.config.timeout;
 
-    const metadata = options.headers || {};
+    const metadata = this.buildInvocationMetadata(options.headers);
 
     const jobId = `${functionId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const state = new JobState();
@@ -787,7 +812,33 @@ export class BasicClient implements CroupierClient {
       return false;
     }
     // Check if any InvokeOptions-specific field is present
-    return "retry" in obj || "idempotencyKey" in obj || "timeout" in obj;
+    return (
+      "retry" in obj ||
+      "idempotencyKey" in obj ||
+      "timeout" in obj ||
+      "headers" in obj
+    );
+  }
+
+  private buildInvocationMetadata(
+    invocationHeaders?: Record<string, string>,
+  ): Record<string, string> {
+    const metadata: Record<string, string> = {
+      ...this.config.headers,
+      ...(invocationHeaders || {}),
+    };
+
+    if (this.config.authToken && !metadata.Authorization) {
+      metadata.Authorization = `Bearer ${this.config.authToken}`;
+    }
+    if (this.config.gameId && !metadata["X-Game-ID"]) {
+      metadata["X-Game-ID"] = this.config.gameId;
+    }
+    if (this.config.env && !metadata["X-Env"]) {
+      metadata["X-Env"] = this.config.env;
+    }
+
+    return metadata;
   }
 
   private async connectAndRegister(): Promise<void> {
@@ -814,9 +865,37 @@ export class BasicClient implements CroupierClient {
       }
       this.transport = transport;
       this.sessionId = response.sessionId;
+      await this.maybeRegisterCapabilities();
     } catch (error) {
       transport.close();
       throw error;
+    }
+  }
+
+  private async maybeRegisterCapabilities(): Promise<void> {
+    if (!this.config.controlAddr) {
+      return;
+    }
+
+    const controlTransport = new NNGTransport(
+      this.config.controlAddr,
+      this.config.timeout,
+    );
+    controlTransport.connect();
+
+    try {
+      const [, responseData] = controlTransport.call(
+        MSG_REGISTER_CAPABILITIES_REQ,
+        this.serializeRegisterCapabilitiesRequest(),
+      );
+      this.parseRegisterCapabilitiesResponse(responseData);
+    } catch (error) {
+      // Capabilities upload is best-effort and must not break registration.
+      if (!this.config.disableLogging) {
+        console.warn("Failed to register capabilities:", error);
+      }
+    } finally {
+      controlTransport.close();
     }
   }
 
@@ -967,6 +1046,26 @@ export class BasicClient implements CroupierClient {
       sessionId: request.sessionId,
     });
     return Buffer.from(HeartbeatRequestMessage.encode(payload).finish());
+  }
+
+  private serializeRegisterCapabilitiesRequest(): Buffer {
+    const payload = RegisterCapabilitiesRequestMessage.create({
+      provider: {
+        id: this.config.serviceId,
+        version: this.config.serviceVersion,
+        lang: this.config.providerLang,
+        sdk: this.config.providerSdk,
+      },
+      manifestJsonGz: this.getManifestGzipped(),
+    });
+
+    return Buffer.from(
+      RegisterCapabilitiesRequestMessage.encode(payload).finish(),
+    );
+  }
+
+  private parseRegisterCapabilitiesResponse(data: Buffer): void {
+    RegisterCapabilitiesResponseMessage.decode(data);
   }
 
   buildManifest() {

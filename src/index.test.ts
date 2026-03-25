@@ -8,6 +8,7 @@ import {
 import { NNGTransport } from "./transport";
 import {
   MSG_HEARTBEAT_LOCAL_REQUEST,
+  MSG_REGISTER_CAPABILITIES_REQ,
   MSG_REGISTER_LOCAL_REQUEST,
 } from "./protocol";
 
@@ -25,6 +26,17 @@ message HeartbeatRequest {
   string service_id = 1;
   string session_id = 2;
 }
+message ProviderMeta {
+  string id = 1;
+  string version = 2;
+  string lang = 3;
+  string sdk = 4;
+}
+message RegisterCapabilitiesRequest {
+  ProviderMeta provider = 1;
+  bytes manifest_json_gz = 2;
+}
+message RegisterCapabilitiesResponse {}
 `).root;
 const RegisterLocalResponseMessage = providerRoot.lookupType(
   "croupier.sdk.v1.RegisterLocalResponse",
@@ -34,6 +46,9 @@ const RegisterLocalRequestMessage = providerRoot.lookupType(
 );
 const HeartbeatRequestMessage = providerRoot.lookupType(
   "croupier.sdk.v1.HeartbeatRequest",
+);
+const RegisterCapabilitiesRequestMessage = providerRoot.lookupType(
+  "croupier.sdk.v1.RegisterCapabilitiesRequest",
 );
 
 describe("BasicClient", () => {
@@ -139,10 +154,14 @@ describe("BasicClient", () => {
 
     expect(config.agentAddr).toBe("tcp://127.0.0.1:19090");
     expect(config.timeout).toBe(30000);
+    expect(config.agentId).toBe("");
+    expect(config.env).toBe("development");
     expect(config.serviceVersion).toBe("1.0.0");
     expect(config.heartbeatIntervalSeconds).toBe(60);
     expect(config.providerLang).toBe("node");
     expect(config.providerSdk).toBe("croupier-js-sdk");
+    expect(config.insecure).toBe(true);
+    expect(config.serverName).toBe("");
   });
 
   test("constructor merges user config", () => {
@@ -372,6 +391,121 @@ describe("BasicClient", () => {
     expect((client as any).sessionId).toBe("session-1");
 
     await client.disconnect();
+    connectSpy.mockRestore();
+    callSpy.mockRestore();
+    closeSpy.mockRestore();
+  });
+
+  test("connect uploads capabilities when controlAddr is configured", async () => {
+    const capabilityCalls: Buffer[] = [];
+    const connectSpy = jest
+      .spyOn(NNGTransport.prototype, "connect")
+      .mockImplementation(() => {});
+    const callSpy = jest
+      .spyOn(NNGTransport.prototype, "call")
+      .mockImplementation((msgType, data) => {
+        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+          const response = RegisterLocalResponseMessage.create({
+            sessionId: "session-1",
+          });
+          return [
+            msgType + 1,
+            Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
+          ];
+        }
+        if (msgType === MSG_REGISTER_CAPABILITIES_REQ) {
+          capabilityCalls.push(Buffer.from(data));
+          return [msgType + 1, Buffer.alloc(0)];
+        }
+        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+          return [msgType + 1, Buffer.alloc(0)];
+        }
+        throw new Error(`Unexpected msgType ${msgType}`);
+      });
+    const closeSpy = jest
+      .spyOn(NNGTransport.prototype, "close")
+      .mockImplementation(() => {});
+
+    const client = new BasicClient({
+      serviceId: "test-service",
+      serviceVersion: "2.0.0",
+      providerLang: "node",
+      providerSdk: "croupier-js-sdk",
+      controlAddr: "tcp://127.0.0.1:19100",
+    });
+    client.registerFunction(
+      { id: "test.fn", version: "1.0.0" },
+      async () => "ok",
+    );
+
+    await client.connect();
+
+    expect(capabilityCalls).toHaveLength(1);
+    const decoded = RegisterCapabilitiesRequestMessage.decode(capabilityCalls[0]);
+    const request = RegisterCapabilitiesRequestMessage.toObject(decoded, {
+      defaults: true,
+    }) as {
+      provider: { id: string; version: string; lang: string; sdk: string };
+      manifestJsonGz: Uint8Array;
+    };
+    expect(request.provider).toEqual({
+      id: "test-service",
+      version: "2.0.0",
+      lang: "node",
+      sdk: "croupier-js-sdk",
+    });
+    expect(Buffer.from(request.manifestJsonGz).length).toBeGreaterThan(0);
+
+    await client.disconnect();
+    connectSpy.mockRestore();
+    callSpy.mockRestore();
+    closeSpy.mockRestore();
+  });
+
+  test("connect ignores capability upload failures", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const connectSpy = jest
+      .spyOn(NNGTransport.prototype, "connect")
+      .mockImplementation(() => {});
+    const callSpy = jest
+      .spyOn(NNGTransport.prototype, "call")
+      .mockImplementation((msgType) => {
+        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+          const response = RegisterLocalResponseMessage.create({
+            sessionId: "session-1",
+          });
+          return [
+            msgType + 1,
+            Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
+          ];
+        }
+        if (msgType === MSG_REGISTER_CAPABILITIES_REQ) {
+          throw new Error("capabilities failed");
+        }
+        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+          return [msgType + 1, Buffer.alloc(0)];
+        }
+        throw new Error(`Unexpected msgType ${msgType}`);
+      });
+    const closeSpy = jest
+      .spyOn(NNGTransport.prototype, "close")
+      .mockImplementation(() => {});
+
+    const client = new BasicClient({
+      serviceId: "test-service",
+      controlAddr: "tcp://127.0.0.1:19100",
+    });
+    client.registerFunction(
+      { id: "test.fn", version: "1.0.0" },
+      async () => "ok",
+    );
+
+    await expect(client.connect()).resolves.not.toThrow();
+    expect((client as any).sessionId).toBe("session-1");
+    expect(warnSpy).toHaveBeenCalled();
+
+    await client.disconnect();
+    warnSpy.mockRestore();
     connectSpy.mockRestore();
     callSpy.mockRestore();
     closeSpy.mockRestore();
@@ -1198,6 +1332,109 @@ describe("BasicClient", () => {
       expect(result).toBe("result");
       expect(handler).toHaveBeenCalled();
     });
+
+    test("invoke merges client-level headers, auth token, gameId, and env", async () => {
+      const client = new BasicClient({
+        authToken: "secret-token",
+        gameId: "game-123",
+        env: "staging",
+        headers: {
+          "X-Client": "sdk",
+        },
+      });
+      let receivedContext = "";
+      client.registerFunction(
+        { id: "test.fn", version: "1.0.0" },
+        async (ctx) => {
+          receivedContext = ctx;
+          return "result";
+        },
+      );
+
+      const result = await client.invoke("test.fn", "payload", {
+        headers: {
+          "X-Request-ID": "req-1",
+        },
+      });
+
+      expect(result).toBe("result");
+      const context = JSON.parse(receivedContext);
+      expect(context.Authorization).toBe("Bearer secret-token");
+      expect(context["X-Client"]).toBe("sdk");
+      expect(context["X-Request-ID"]).toBe("req-1");
+      expect(context["X-Game-ID"]).toBe("game-123");
+      expect(context["X-Env"]).toBe("staging");
+    });
+
+    test("per-call headers override client-level metadata defaults", async () => {
+      const client = new BasicClient({
+        authToken: "secret-token",
+        gameId: "game-default",
+        env: "development",
+        headers: {
+          Authorization: "Bearer config-token",
+          "X-Game-ID": "game-config",
+          "X-Env": "staging",
+        },
+      });
+      let receivedContext = "";
+      client.registerFunction(
+        { id: "test.fn", version: "1.0.0" },
+        async (ctx) => {
+          receivedContext = ctx;
+          return "result";
+        },
+      );
+
+      await client.invoke("test.fn", "payload", {
+        headers: {
+          Authorization: "Bearer override-token",
+          "X-Game-ID": "game-override",
+          "X-Env": "production",
+        },
+      });
+
+      const context = JSON.parse(receivedContext);
+      expect(context.Authorization).toBe("Bearer override-token");
+      expect(context["X-Game-ID"]).toBe("game-override");
+      expect(context["X-Env"]).toBe("production");
+    });
+
+    test("startJob uses merged client-level metadata", async () => {
+      const client = new BasicClient({
+        authToken: "job-token",
+        gameId: "job-game",
+        env: "staging",
+        headers: {
+          "X-Client": "job-sdk",
+        },
+      });
+      let receivedContext = "";
+      client.registerFunction(
+        { id: "test.fn", version: "1.0.0" },
+        async (ctx) => {
+          receivedContext = ctx;
+          return "done";
+        },
+      );
+
+      const jobId = client.startJob("test.fn", "payload", {
+        headers: {
+          "X-Request-ID": "job-1",
+        },
+      });
+
+      for await (const _ of client.streamJob(jobId)) {
+        // consume events
+      }
+
+      const context = JSON.parse(receivedContext);
+      expect(context.Authorization).toBe("Bearer job-token");
+      expect(context["X-Client"]).toBe("job-sdk");
+      expect(context["X-Request-ID"]).toBe("job-1");
+      expect(context["X-Game-ID"]).toBe("job-game");
+      expect(context["X-Env"]).toBe("staging");
+    });
   });
 
   describe("Configuration Options - localListen and controlAddr", () => {
@@ -1232,6 +1469,32 @@ describe("BasicClient", () => {
       });
       expect((client as any).config.localListen).toBe("127.0.0.1:0");
       expect((client as any).config.controlAddr).toBe("tcp://127.0.0.1:8080");
+    });
+  });
+
+  describe("Configuration Options - agentId and serverName", () => {
+    test("agentId can be set", () => {
+      const client = new BasicClient({
+        agentId: "agent-1",
+      });
+      expect((client as any).config.agentId).toBe("agent-1");
+    });
+
+    test("agentId defaults to empty string", () => {
+      const client = new BasicClient();
+      expect((client as any).config.agentId).toBe("");
+    });
+
+    test("serverName can be set", () => {
+      const client = new BasicClient({
+        serverName: "agent.example.com",
+      });
+      expect((client as any).config.serverName).toBe("agent.example.com");
+    });
+
+    test("serverName defaults to empty string", () => {
+      const client = new BasicClient();
+      expect((client as any).config.serverName).toBe("");
     });
   });
 

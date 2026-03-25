@@ -97,44 +97,70 @@ const descriptor: FunctionDescriptor = {
 
 ---
 
-### FileTransferConfig
+### ClientConfig
 
-客户端配置接口（兼作 ClientConfig 使用）。
+客户端配置接口。
 
 ```typescript
-interface FileTransferConfig {
+interface ClientConfig {
   // 连接配置
-  agentAddr?: string; // Agent gRPC 地址，默认 "127.0.0.1:19090"
-  controlAddr?: string; // 控制服务地址
-  localListen?: string; // 本地服务器监听地址，默认 "127.0.0.1:0"
+  agentAddr?: string; // Agent 地址，默认 "tcp://127.0.0.1:19090"
+  controlAddr?: string; // 控制面地址，用于上传 provider manifest
+  localListen?: string; // 本地监听地址，默认 ""
   timeout?: number; // 连接超时（毫秒），默认 30000
   insecure?: boolean; // 是否跳过 TLS，默认 true
+  serverName?: string; // TLS Server Name
 
   // 服务标识
+  agentId?: string; // Agent 标识符
   serviceId?: string; // 服务标识符
   serviceVersion?: string; // 服务版本，默认 "1.0.0"
+  gameId?: string; // 游戏标识符
+  env?: string; // 环境，默认 "development"
 
   // 心跳配置
   heartbeatIntervalSeconds?: number; // 心跳间隔（秒），默认 60
 
-  // 重试配置
-  retryAttempts?: number; // 重试次数，默认 3
-
   // Provider 元数据
   providerLang?: string; // Provider 语言，默认 "node"
   providerSdk?: string; // SDK 标识，默认 "croupier-js-sdk"
+
+  // 认证与元数据
+  authToken?: string; // Bearer Token
+  headers?: Record<string, string>; // 默认 metadata / headers
+
+  // 重连与重试
+  autoReconnect?: boolean; // 是否自动重连，默认 true
+  reconnect?: ReconnectConfig;
+  retry?: RetryConfig;
+
+  // 文件传输
+  enableFileTransfer?: boolean; // 是否启用文件传输
+  maxFileSize?: number; // 最大文件大小，默认 10 MiB
+
+  // 日志
+  disableLogging?: boolean;
+  debugLogging?: boolean;
+  logLevel?: "DEBUG" | "INFO" | "WARN" | "ERROR" | "OFF";
 }
 ```
 
 **使用示例:**
 
 ```typescript
-const config: FileTransferConfig = {
-  agentAddr: "localhost:19090",
+const config: ClientConfig = {
+  agentAddr: "tcp://127.0.0.1:19090",
+  controlAddr: "tcp://127.0.0.1:19100",
   insecure: true,
   serviceId: "player-service",
   serviceVersion: "1.0.0",
-  heartbeatIntervalSeconds: 30,
+  gameId: "my-game",
+  env: "staging",
+  heartbeatIntervalSeconds: 60,
+  authToken: process.env.CROUPIER_AUTH_TOKEN,
+  headers: {
+    "X-Client": "player-service",
+  },
 };
 ```
 
@@ -170,10 +196,27 @@ interface CroupierClient {
   registerFunction(
     descriptor: FunctionDescriptor,
     handler: FunctionHandler,
-  ): Promise<void>;
+  ): void;
 
-  // 上传文件
-  uploadFile(request: FileUploadRequest): Promise<void>;
+  // 同步调用
+  invoke(
+    functionId: string,
+    payload: string,
+    optionsOrMetadata?: InvokeOptions | Record<string, string>,
+  ): Promise<string>;
+
+  // 异步任务
+  startJob(
+    functionId: string,
+    payload: string,
+    optionsOrMetadata?: InvokeOptions | Record<string, string>,
+  ): string;
+  streamJob(jobId: string): AsyncIterable<JobEvent>;
+  cancelJob(jobId: string): boolean;
+
+  // 运行模式
+  serve(): Promise<void>;
+  serveAsync(): Promise<void>;
 }
 ```
 
@@ -186,7 +229,7 @@ interface CroupierClient {
 ### 构造函数
 
 ```typescript
-constructor(config?: FileTransferConfig)
+constructor(config?: ClientConfig)
 ```
 
 **参数:**
