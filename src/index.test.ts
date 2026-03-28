@@ -1,4 +1,7 @@
 import * as protobuf from "protobufjs";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { Readable } from "node:stream";
 import {
   BasicClient,
   createClient,
@@ -52,6 +55,268 @@ const RegisterCapabilitiesRequestMessage = providerRoot.lookupType(
 );
 
 describe("BasicClient", () => {
+  test("uploadFile rejects when file transfer is disabled", async () => {
+    const client = new BasicClient();
+
+    await expect(
+      client.uploadFile({
+        filePath: "functions/test.js",
+        content: "console.log('hi')",
+      }),
+    ).rejects.toThrow(/File transfer is disabled/i);
+  });
+
+  test("uploadFile validates content and returns metadata", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".js"],
+      allowedMimeTypes: ["text/javascript"],
+      maxFileSize: 1024,
+    });
+
+    const result = await client.uploadFile({
+      filePath: "functions/test.js",
+      content: "console.log('hi')",
+      metadata: { version: "1.0.0" },
+    });
+
+    expect(result.status).toBe("validated");
+    expect(result.fileName).toBe("test.js");
+    expect(result.mimeType).toBe("text/javascript");
+    expect(result.metadata).toEqual({ version: "1.0.0" });
+    expect(result.size).toBeGreaterThan(0);
+    expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test("uploadFile reports progress for inline content", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".js"],
+    });
+    const progressEvents: Array<{
+      filePath: string;
+      loaded: number;
+      total?: number;
+      percent?: number;
+    }> = [];
+
+    const result = await client.uploadFile({
+      filePath: "functions/test.js",
+      content: "console.log('hi')",
+      onProgress: (progress) => progressEvents.push(progress),
+    });
+
+    expect(progressEvents).toEqual([
+      {
+        filePath: "functions/test.js",
+        loaded: result.size,
+        total: result.size,
+        percent: 100,
+      },
+    ]);
+  });
+
+  test("uploadFile reads content from disk when content is omitted", async () => {
+    const filePath = join(process.cwd(), "tmp-js-sdk-upload.json");
+    writeFileSync(filePath, JSON.stringify({ ok: true }), "utf8");
+
+    try {
+      const client = new BasicClient({
+        enableFileTransfer: true,
+        allowedExtensions: [".json"],
+      });
+      const progressEvents: Array<{
+        filePath: string;
+        loaded: number;
+        total?: number;
+        percent?: number;
+      }> = [];
+
+      const result = await client.uploadFile({
+        filePath,
+        onProgress: (progress) => progressEvents.push(progress),
+      });
+      expect(result.filePath).toBe(filePath);
+      expect(result.mimeType).toBe("application/json");
+      expect(result.size).toBeGreaterThan(0);
+      expect(progressEvents).toEqual([
+        {
+          filePath,
+          loaded: result.size,
+          total: result.size,
+          percent: 100,
+        },
+      ]);
+    } finally {
+      unlinkSync(filePath);
+    }
+  });
+
+  test("uploadFile rejects disallowed file extension", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".json"],
+    });
+
+    await expect(
+      client.uploadFile({
+        filePath: "functions/test.js",
+        content: "console.log('hi')",
+      }),
+    ).rejects.toThrow(/not allowed/i);
+  });
+
+  test("uploadFileStream validates stream content", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".txt"],
+      allowedMimeTypes: ["text/plain"],
+      maxFileSize: 1024,
+    });
+
+    const result = await client.uploadFileStream({
+      filePath: "assets/readme.txt",
+      stream: Readable.from(["hello ", "world"]),
+    });
+
+    expect(result.status).toBe("validated");
+    expect(result.fileName).toBe("readme.txt");
+    expect(result.mimeType).toBe("text/plain");
+    expect(result.size).toBe(11);
+  });
+
+  test("uploadFileStream reports progress for stream content", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".txt"],
+      allowedMimeTypes: ["text/plain"],
+      maxFileSize: 1024,
+    });
+    const progressEvents: Array<{
+      filePath: string;
+      loaded: number;
+      total?: number;
+      percent?: number;
+    }> = [];
+
+    const result = await client.uploadFileStream({
+      filePath: "assets/readme.txt",
+      stream: Readable.from(["hello ", "world"]),
+      metadata: { size: "11" },
+      onProgress: (progress) => progressEvents.push(progress),
+    });
+
+    expect(result.size).toBe(11);
+    expect(progressEvents).toEqual([
+      {
+        filePath: "assets/readme.txt",
+        loaded: 6,
+        total: 11,
+        percent: expect.closeTo(54.545454, 5),
+      },
+      {
+        filePath: "assets/readme.txt",
+        loaded: 11,
+        total: 11,
+        percent: 100,
+      },
+      {
+        filePath: "assets/readme.txt",
+        loaded: 11,
+        total: 11,
+        percent: 100,
+      },
+    ]);
+  });
+
+  test("uploadFiles validates batch requests", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".js"],
+      parallelUploads: 2,
+    });
+
+    const result = await client.uploadFiles([
+      {
+        filePath: "functions/a.js",
+        content: "export const a = 1;",
+      },
+      {
+        filePath: "functions/b.js",
+        content: "export const b = 2;",
+      },
+    ]);
+
+    expect(result.total).toBe(2);
+    expect(result.succeeded).toBe(2);
+    expect(result.failed).toBe(0);
+    expect(result.results).toHaveLength(2);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].ok).toBe(true);
+    expect(result.items[1].ok).toBe(true);
+    expect(result.results[0].fileName).toBe("a.js");
+    expect(result.results[1].fileName).toBe("b.js");
+  });
+
+  test("uploadFiles reports per-item failures without aborting the batch", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+      allowedExtensions: [".js"],
+      parallelUploads: 2,
+    });
+
+    const result = await client.uploadFiles([
+      {
+        filePath: "functions/a.js",
+        content: "export const a = 1;",
+      },
+      {
+        filePath: "functions/b.txt",
+        content: "not allowed",
+      },
+      {
+        filePath: "functions/c.js",
+        content: "export const c = 3;",
+      },
+    ]);
+
+    expect(result.total).toBe(3);
+    expect(result.succeeded).toBe(2);
+    expect(result.failed).toBe(1);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].fileName).toBe("a.js");
+    expect(result.results[1].fileName).toBe("c.js");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        ok: true,
+        filePath: "functions/a.js",
+      }),
+      {
+        ok: false,
+        filePath: "functions/b.txt",
+        error: expect.stringMatching(/not allowed/i),
+      },
+      expect.objectContaining({
+        ok: true,
+        filePath: "functions/c.js",
+      }),
+    ]);
+  });
+
+  test("uploadFiles returns empty batch result for empty input", async () => {
+    const client = new BasicClient({
+      enableFileTransfer: true,
+    });
+
+    await expect(client.uploadFiles([])).resolves.toEqual({
+      total: 0,
+      succeeded: 0,
+      failed: 0,
+      results: [],
+      items: [],
+    });
+  });
+
   test("connect requires at least one function", async () => {
     const client = new BasicClient({ agentAddr: "tcp://127.0.0.1:19090" });
     await expect(client.connect()).rejects.toThrow(

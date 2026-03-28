@@ -42,6 +42,9 @@ npm run dev
 await client.uploadFile({
   filePath: "./functions/playerBan.js",
   content: fileContent,
+  onProgress: (progress) => {
+    console.log("validated", progress.filePath, progress.percent);
+  },
   metadata: {
     version: "1.0.0",
     author: "game-team",
@@ -53,7 +56,6 @@ await client.uploadFile({
 ### 批量文件传输
 
 ```javascript
-// 计划中的批量上传
 const files = [
   {
     filePath: "functions/playerBan.js",
@@ -67,9 +69,9 @@ const files = [
   },
 ];
 
-for (const file of files) {
-  await client.uploadFile(file);
-}
+const batch = await client.uploadFiles(files);
+console.log(batch.succeeded, batch.total);
+console.log(batch.items);
 ```
 
 ### 流式文件上传
@@ -83,8 +85,11 @@ await client.uploadFileStream({
   filePath: "./assets/large-file.zip",
   stream: readStream,
   metadata: {
-    size: fileStats.size,
+    size: String(fileStats.size),
     checksum: "sha256-hash",
+  },
+  onProgress: (progress) => {
+    console.log(progress.loaded, progress.total, progress.percent);
   },
 });
 ```
@@ -95,10 +100,11 @@ await client.uploadFileStream({
 
 - ✅ 接口定义完成
 - ✅ TypeScript类型支持
-- 🚧 文件传输实现（开发中）
-- 🚧 流式上传支持（规划中）
-- 🚧 批量操作支持（规划中）
-- 🚧 上传进度监控（规划中）
+- ✅ 客户端侧文件预检与元数据封装
+- ✅ 流式内容预检支持
+- ✅ 批量预检支持
+- ✅ 上传进度回调
+- ✅ 批量失败明细
 
 ## 🎯 功能演示
 

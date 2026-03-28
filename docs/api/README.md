@@ -175,6 +175,26 @@ interface FileUploadRequest {
   filePath: string; // 文件路径
   content: Buffer | string; // 文件内容
   metadata?: Record<string, any>; // 元数据
+  mimeType?: string; // 可选 MIME 类型覆盖
+  onProgress?: (progress: FileUploadProgress) => void; // 预检进度回调
+}
+```
+
+```typescript
+interface FileUploadProgress {
+  filePath: string;
+  loaded: number;
+  total?: number;
+  percent?: number;
+}
+```
+
+```typescript
+interface FileUploadBatchItemResult {
+  ok: boolean;
+  filePath: string;
+  result?: FileUploadResult;
+  error?: string;
 }
 ```
 
@@ -288,13 +308,57 @@ async registerFunction(
 
 #### uploadFile
 
-上传文件（未实现）。
+上传文件并执行客户端侧预检。
 
 ```typescript
-async uploadFile(request: FileUploadRequest): Promise<void>
+async uploadFile(request: FileUploadRequest): Promise<FileUploadResult>
 ```
 
-**注意:** 当前版本未实现，调用会抛出错误。
+当前实现会完成以下检查：
+
+- 文件传输功能是否启用
+- 文件路径是否有效
+- 文件大小是否超过 `maxFileSize`
+- 文件扩展名是否命中 `allowedExtensions`
+- MIME 类型是否命中 `allowedMimeTypes`
+- 生成 `sha256` 校验值和标准化元数据
+- 触发一次 `onProgress` 完成事件
+
+返回值中的 `status` 当前固定为 `validated`，表示客户端预检已完成。
+
+---
+
+#### uploadFileStream
+
+从 Node.js 可读流上传文件并执行客户端侧预检。
+
+```typescript
+async uploadFileStream(
+  request: FileUploadStreamRequest
+): Promise<FileUploadResult>
+```
+
+支持对流式内容执行大小限制和超时控制，超时时间由 `uploadTimeout` 控制。
+如果 `metadata.size` 提供了总字节数，进度回调会额外填充 `total` 和 `percent`。
+
+---
+
+#### uploadFiles
+
+批量上传文件并执行客户端侧预检。
+
+```typescript
+async uploadFiles(
+  requests: FileUploadRequest[]
+): Promise<FileUploadBatchResult>
+```
+
+当前实现支持：
+
+- 基于 `parallelUploads` 的并发预检
+- 保持输入顺序返回 `items`
+- 返回批量统计信息 `total/succeeded/failed`
+- 对单个失败项返回 `items[n].error`，不会中断整个批次
 
 ---
 

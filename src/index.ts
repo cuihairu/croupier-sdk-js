@@ -5,7 +5,10 @@
  * Uses NNG (nanomsg-next-gen) for transport layer.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { extname, basename } from "node:path";
+import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { TextDecoder, TextEncoder } from "node:util";
 import * as protobuf from "protobufjs";
@@ -319,6 +322,10 @@ export interface ClientConfig {
   // === File Transfer ===
   enableFileTransfer?: boolean;
   maxFileSize?: number;
+  allowedExtensions?: string[];
+  allowedMimeTypes?: string[];
+  uploadTimeout?: number;
+  parallelUploads?: number;
 
   // === Logging ===
   disableLogging?: boolean;
@@ -340,6 +347,54 @@ interface JobEvent {
   message?: string;
   progress?: number;
   payload: Uint8Array;
+}
+
+export interface FileUploadProgress {
+  filePath: string;
+  loaded: number;
+  total?: number;
+  percent?: number;
+}
+
+export interface FileUploadRequest {
+  filePath: string;
+  content?: string | Uint8Array | Buffer;
+  metadata?: Record<string, string>;
+  mimeType?: string;
+  onProgress?: (progress: FileUploadProgress) => void;
+}
+
+export interface FileUploadStreamRequest {
+  filePath: string;
+  stream: Readable;
+  metadata?: Record<string, string>;
+  mimeType?: string;
+  onProgress?: (progress: FileUploadProgress) => void;
+}
+
+export interface FileUploadResult {
+  filePath: string;
+  fileName: string;
+  size: number;
+  mimeType: string;
+  sha256: string;
+  metadata: Record<string, string>;
+  status: "validated";
+}
+
+export interface FileUploadBatchItemResult {
+  ok: boolean;
+  filePath: string;
+  result?: FileUploadResult;
+  error?: string;
+}
+
+export interface FileUploadBatchResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: FileUploadResult[];
+  items: FileUploadBatchItemResult[];
 }
 
 class JobState {
@@ -412,6 +467,13 @@ export interface CroupierClient {
   ): string;
   streamJob(jobId: string): AsyncIterable<JobEvent>;
   cancelJob(jobId: string): boolean;
+  uploadFile(request: FileUploadRequest): Promise<FileUploadResult>;
+  uploadFileStream(
+    request: FileUploadStreamRequest,
+  ): Promise<FileUploadResult>;
+  uploadFiles(
+    requests: FileUploadRequest[],
+  ): Promise<FileUploadBatchResult>;
   serve(): Promise<void>;
   serveAsync(): Promise<void>;
 }
@@ -471,6 +533,10 @@ export class BasicClient implements CroupierClient {
       // File Transfer
       enableFileTransfer: false,
       maxFileSize: 10485760, // 10 MB default
+      allowedExtensions: [],
+      allowedMimeTypes: [],
+      uploadTimeout: 300000,
+      parallelUploads: 4,
 
       // Logging
       disableLogging: false,
@@ -799,6 +865,116 @@ export class BasicClient implements CroupierClient {
     return false;
   }
 
+  async uploadFile(request: FileUploadRequest): Promise<FileUploadResult> {
+    this.ensureFileTransferEnabled();
+
+    const filePath = this.normalizeUploadPath(request.filePath);
+    const content =
+      request.content !== undefined
+        ? this.normalizeUploadContent(request.content)
+        : new Uint8Array(await readFile(filePath));
+
+    this.emitUploadProgress(request.onProgress, {
+      filePath,
+      loaded: content.byteLength,
+      total: content.byteLength,
+      percent: 100,
+    });
+
+    return this.buildUploadResult({
+      filePath,
+      content,
+      metadata: request.metadata,
+      mimeType: request.mimeType,
+    });
+  }
+
+  async uploadFileStream(
+    request: FileUploadStreamRequest,
+  ): Promise<FileUploadResult> {
+    this.ensureFileTransferEnabled();
+
+    const filePath = this.normalizeUploadPath(request.filePath);
+    const content = await this.readStreamWithTimeout({
+      filePath,
+      stream: request.stream,
+      total: this.parseUploadTotal(request.metadata?.size),
+      onProgress: request.onProgress,
+    });
+
+    return this.buildUploadResult({
+      filePath,
+      content,
+      metadata: request.metadata,
+      mimeType: request.mimeType,
+    });
+  }
+
+  async uploadFiles(
+    requests: FileUploadRequest[],
+  ): Promise<FileUploadBatchResult> {
+    this.ensureFileTransferEnabled();
+    if (requests.length === 0) {
+      return {
+        total: 0,
+        succeeded: 0,
+        failed: 0,
+        results: [],
+        items: [],
+      };
+    }
+
+    const items: FileUploadBatchItemResult[] = new Array(requests.length);
+    const concurrency = Math.max(1, this.config.parallelUploads);
+    let nextIndex = 0;
+
+    const worker = async (): Promise<void> => {
+      while (nextIndex < requests.length) {
+        const current = nextIndex;
+        nextIndex += 1;
+        const request = requests[current];
+        const filePath = this.normalizeUploadPath(request.filePath);
+
+        try {
+          const result = await this.uploadFile(request);
+          items[current] = {
+            ok: true,
+            filePath,
+            result,
+          };
+        } catch (error) {
+          items[current] = {
+            ok: false,
+            filePath,
+            error:
+              error instanceof Error ? error.message : "Unknown upload error.",
+          };
+        }
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(concurrency, requests.length) },
+      () => worker(),
+    );
+    await Promise.all(workers);
+
+    const results = items
+      .filter(
+        (item): item is FileUploadBatchItemResult & { result: FileUploadResult } =>
+          item.ok === true && item.result !== undefined,
+      )
+      .map((item) => item.result);
+
+    return {
+      total: requests.length,
+      succeeded: results.length,
+      failed: items.filter((item) => !item.ok).length,
+      results,
+      items,
+    };
+  }
+
   /**
    * Type guard to check if an object is InvokeOptions.
    *
@@ -839,6 +1015,174 @@ export class BasicClient implements CroupierClient {
     }
 
     return metadata;
+  }
+
+  private ensureFileTransferEnabled(): void {
+    if (!this.config.enableFileTransfer) {
+      throw new Error(
+        "File transfer is disabled. Set enableFileTransfer=true to use upload APIs.",
+      );
+    }
+  }
+
+  private normalizeUploadPath(filePath: string): string {
+    const normalized = filePath.trim();
+    if (!normalized) {
+      throw new Error("File upload request must include a non-empty filePath.");
+    }
+    return normalized;
+  }
+
+  private normalizeUploadContent(
+    content: string | Uint8Array | Buffer,
+  ): Uint8Array {
+    if (typeof content === "string") {
+      return encoder.encode(content);
+    }
+    return content instanceof Uint8Array ? content : new Uint8Array(content);
+  }
+
+  private emitUploadProgress(
+    callback: ((progress: FileUploadProgress) => void) | undefined,
+    progress: FileUploadProgress,
+  ): void {
+    callback?.(progress);
+  }
+
+  private parseUploadTotal(totalValue?: string): number | undefined {
+    if (!totalValue) {
+      return undefined;
+    }
+    const parsed = Number(totalValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return undefined;
+    }
+    return parsed;
+  }
+
+  private async readStreamWithTimeout(params: {
+    filePath: string;
+    stream: Readable;
+    total?: number;
+    onProgress?: (progress: FileUploadProgress) => void;
+  }): Promise<Uint8Array> {
+    const chunks: Buffer[] = [];
+    let total = 0;
+
+    const readPromise = new Promise<Uint8Array>((resolve, reject) => {
+      params.stream.on("data", (chunk: Buffer | string) => {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += buffer.byteLength;
+        if (total > this.config.maxFileSize) {
+          reject(
+            new Error(
+              `File exceeds maxFileSize limit (${this.config.maxFileSize} bytes).`,
+            ),
+          );
+          params.stream.destroy();
+          return;
+        }
+        chunks.push(buffer);
+        this.emitUploadProgress(params.onProgress, {
+          filePath: params.filePath,
+          loaded: total,
+          total: params.total,
+          percent: params.total
+            ? Math.min(100, (total / params.total) * 100)
+            : undefined,
+        });
+      });
+      params.stream.on("error", reject);
+      params.stream.on("end", () => {
+        this.emitUploadProgress(params.onProgress, {
+          filePath: params.filePath,
+          loaded: total,
+          total: params.total,
+          percent: params.total ? 100 : undefined,
+        });
+        resolve(new Uint8Array(Buffer.concat(chunks)));
+      });
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            `File upload stream timed out after ${this.config.uploadTimeout}ms.`,
+          ),
+        );
+      }, this.config.uploadTimeout);
+    });
+
+    return Promise.race([readPromise, timeoutPromise]);
+  }
+
+  private buildUploadResult(params: {
+    filePath: string;
+    content: Uint8Array;
+    metadata?: Record<string, string>;
+    mimeType?: string;
+  }): FileUploadResult {
+    const fileName = basename(params.filePath);
+    const extension = extname(params.filePath).toLowerCase();
+    const size = params.content.byteLength;
+    const mimeType = params.mimeType || this.guessMimeType(extension);
+
+    if (size === 0) {
+      throw new Error("File upload content cannot be empty.");
+    }
+    if (size > this.config.maxFileSize) {
+      throw new Error(
+        `File exceeds maxFileSize limit (${this.config.maxFileSize} bytes).`,
+      );
+    }
+    if (
+      this.config.allowedExtensions.length > 0 &&
+      !this.config.allowedExtensions.includes(extension)
+    ) {
+      throw new Error(`File extension ${extension || "<none>"} is not allowed.`);
+    }
+    if (
+      this.config.allowedMimeTypes.length > 0 &&
+      !this.config.allowedMimeTypes.includes(mimeType)
+    ) {
+      throw new Error(`MIME type ${mimeType} is not allowed.`);
+    }
+
+    return {
+      filePath: params.filePath,
+      fileName,
+      size,
+      mimeType,
+      sha256: createHash("sha256")
+        .update(Buffer.from(params.content))
+        .digest("hex"),
+      metadata: { ...(params.metadata || {}) },
+      status: "validated",
+    };
+  }
+
+  private guessMimeType(extension: string): string {
+    switch (extension) {
+      case ".json":
+        return "application/json";
+      case ".js":
+        return "text/javascript";
+      case ".ts":
+        return "text/typescript";
+      case ".txt":
+      case ".md":
+        return "text/plain";
+      case ".zip":
+        return "application/zip";
+      case ".png":
+        return "image/png";
+      case ".jpg":
+      case ".jpeg":
+        return "image/jpeg";
+      default:
+        return "application/octet-stream";
+    }
   }
 
   private async connectAndRegister(): Promise<void> {
