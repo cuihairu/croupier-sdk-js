@@ -106,7 +106,6 @@ interface ClientConfig {
   // 连接配置
   agentAddr?: string; // Agent 地址，默认 "tcp://127.0.0.1:19090"
   controlAddr?: string; // 控制面地址，用于上传 provider manifest
-  localListen?: string; // 本地监听地址，默认 ""
   timeout?: number; // 连接超时（毫秒），默认 30000
   insecure?: boolean; // 是否跳过 TLS，默认 true
   serverName?: string; // TLS Server Name
@@ -226,13 +225,13 @@ interface CroupierClient {
   ): Promise<string>;
 
   // 异步任务
-  startJob(
+  startTask(
     functionId: string,
     payload: string,
     optionsOrMetadata?: InvokeOptions | Record<string, string>,
   ): string;
-  streamJob(jobId: string): AsyncIterable<JobEvent>;
-  cancelJob(jobId: string): boolean;
+  streamTask(taskId: string): AsyncIterable<TaskEvent>;
+  cancelTask(taskId: string): boolean;
 
   // 运行模式
   serve(): Promise<void>;
@@ -385,12 +384,12 @@ const client = createClient({
 
 ## 内部类型
 
-### JobEvent（来自 Proto 定义）
+### TaskEvent（来自 Proto 定义）
 
 任务事件类型。
 
 ```typescript
-interface JobEvent {
+interface TaskEvent {
   type: string; // 事件类型: "started"|"progress"|"completed"|"error"|"cancelled"
   message: string; // 事件消息
   progress: number; // 进度 0-100

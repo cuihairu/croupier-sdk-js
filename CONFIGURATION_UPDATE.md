@@ -280,28 +280,27 @@ const client = new CroupierClient({
 ### 7. 高级连接配置 (Advanced Connection)
 
 ```typescript
-localListen?: string;   // 本地监听地址（默认: ''）
 controlAddr?: string;   // 控制服务地址（默认: ''）
 ```
 
 **用途：**
 
-- `localListen`: 指定本地监听地址和端口
 - `controlAddr`: 指定控制平面服务的地址
+
+> ⚠️ **历史说明：** `localListen` 配置项已被废弃。SDK 不再使用本地监听模型。
 
 **示例：**
 
 ```typescript
 const client = new CroupierClient({
-  localListen: "0.0.0.0:8080", // 监听所有接口的 8080 端口
   controlAddr: "localhost:9090", // 控制服务地址
 });
 ```
 
 **对齐状态：**
 
-- ✅ Java SDK: 支持 `localListen`, `controlAddr`
-- ✅ C++ SDK: 支持 `local_listen`, `control_addr`
+- ✅ Java SDK: 支持 `controlAddr`
+- ✅ C++ SDK: 支持 `control_addr`
 - ✅ JavaScript SDK: 现已支持
 
 ### 8. 日志配置 (Logging)
