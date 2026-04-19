@@ -28,8 +28,6 @@ jobs:
 
       - timeout-minutes: 5
         uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - timeout-minutes: 5
         uses: actions/setup-node@v5
