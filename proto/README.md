@@ -75,8 +75,8 @@ message BanRequest {
 **通信方向**：
 
 ```
-Game SDK --[NNG]--> Agent
-Invoker  --[NNG]--> Agent
+Game SDK --[TCP]--> Agent
+Invoker  --[TCP]--> Agent
 ```
 
 ### agent/ - Agent → Server
@@ -92,7 +92,7 @@ Agent 与中央 Server 的通信协议。
 **通信方向**：
 
 ```
-Agent --[NNG]--> Server
+Agent --[TCP]--> Server
 ```
 
 ### external/ - Server → 第三方服务
@@ -115,9 +115,9 @@ Server --> 第三方平台 (QuickSDK, etc.)
 
 ## 通信协议说明
 
-本系统使用 **NNG (nanomsg-next-gen)** 作为通信协议，不再使用 gRPC。
+本系统使用 **TCP (nanomsg-next-gen)** 作为通信协议，不再使用 gRPC。
 
-Proto 文件中的 `message` 定义用于 NNG 消息的序列化/反序列化，`service` 定义仅作为接口文档说明，不生成 gRPC 代码。
+Proto 文件中的 `message` 定义用于 TCP 消息的序列化/反序列化，`service` 定义仅作为接口文档说明，不生成 gRPC 代码。
 
 ## 通信流程图
 
@@ -125,14 +125,14 @@ Proto 文件中的 `message` 定义用于 NNG 消息的序列化/反序列化，
 ┌─────────────┐
 │  Game SDK   │
 └──────┬──────┘
-       │ NNG (注册函数)
+       │ TCP (注册函数)
        ↓
 ┌─────────────┐           ┌─────────────┐
 │    Agent    │──────────→│   Server    │
-│             │ NNG       │             │
+│             │ TCP       │             │
 └──────┬──────┘           └──────┬──────┘
        │                         │
-       │ NNG                     │ HTTP
+       │ TCP                     │ HTTP
        ↑                         │ (第三方平台)
 ┌──────┴──────┐                  ↓
 │  Invoker    │          ┌─────────────┐

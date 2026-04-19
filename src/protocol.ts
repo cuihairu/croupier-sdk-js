@@ -1,5 +1,5 @@
 /**
- * Croupier wire protocol implementation for NNG transport.
+ * Croupier wire protocol implementation for TCP transport.
  *
  * Message Format:
  *   Header (8 bytes):
@@ -32,18 +32,18 @@ export const MSG_CLIENT_HEARTBEAT_REQUEST = 0x020103;
 export const MSG_CLIENT_HEARTBEAT_RESPONSE = 0x020104;
 export const MSG_LIST_CLIENTS_REQUEST = 0x020105;
 export const MSG_LIST_CLIENTS_RESPONSE = 0x020106;
-export const MSG_GET_JOB_RESULT_REQUEST = 0x020107;
-export const MSG_GET_JOB_RESULT_RESPONSE = 0x020108;
+export const MSG_GET_TASK_RESULT_REQUEST = 0x020107;
+export const MSG_GET_TASK_RESULT_RESPONSE = 0x020108;
 
 // InvokerService (0x03xx)
 export const MSG_INVOKE_REQUEST = 0x030101;
 export const MSG_INVOKE_RESPONSE = 0x030102;
-export const MSG_START_JOB_REQUEST = 0x030103;
-export const MSG_START_JOB_RESPONSE = 0x030104;
-export const MSG_STREAM_JOB_REQUEST = 0x030105;
-export const MSG_JOB_EVENT = 0x030106;
-export const MSG_CANCEL_JOB_REQUEST = 0x030107;
-export const MSG_CANCEL_JOB_RESPONSE = 0x030108;
+export const MSG_START_TASK_REQUEST = 0x030103;
+export const MSG_START_TASK_RESPONSE = 0x030104;
+export const MSG_STREAM_TASK_REQUEST = 0x030105;
+export const MSG_TASK_EVENT = 0x030106;
+export const MSG_CANCEL_TASK_REQUEST = 0x030107;
+export const MSG_CANCEL_TASK_RESPONSE = 0x030108;
 
 // OpsService (0x04xx)
 export const MSG_GET_SYSTEM_INFO_REQUEST = 0x040101;
@@ -55,13 +55,35 @@ export const MSG_REPORT_METRICS_RESPONSE = 0x040106;
 export const MSG_STREAM_METRICS_REQUEST = 0x040107;
 export const MSG_METRIC_EVENT = 0x040108;
 
-// LocalControlService (0x05xx)
-export const MSG_REGISTER_LOCAL_REQUEST = 0x050101;
-export const MSG_REGISTER_LOCAL_RESPONSE = 0x050102;
-export const MSG_HEARTBEAT_LOCAL_REQUEST = 0x050103;
-export const MSG_HEARTBEAT_LOCAL_RESPONSE = 0x050104;
-export const MSG_LIST_LOCAL_REQUEST = 0x050105;
-export const MSG_LIST_LOCAL_RESPONSE = 0x050106;
+// ProviderService (0x05xx) - replaces LocalControlService
+export const MSG_PROVIDER_CONNECT_REQUEST = 0x050101;
+export const MSG_PROVIDER_CONNECT_RESPONSE = 0x050102;
+export const MSG_PROVIDER_HEARTBEAT_REQUEST = 0x050103;
+export const MSG_PROVIDER_HEARTBEAT_RESPONSE = 0x050104;
+export const MSG_PROVIDER_DRAIN_REQUEST = 0x050105;
+export const MSG_PROVIDER_DRAIN_RESPONSE = 0x050106;
+
+// Legacy aliases (deprecated)
+/** @deprecated Use MSG_PROVIDER_CONNECT_REQUEST instead */
+export const MSG_REGISTER_LOCAL_REQUEST = MSG_PROVIDER_CONNECT_REQUEST;
+/** @deprecated Use MSG_PROVIDER_CONNECT_RESPONSE instead */
+export const MSG_REGISTER_LOCAL_RESPONSE = MSG_PROVIDER_CONNECT_RESPONSE;
+/** @deprecated Use MSG_PROVIDER_HEARTBEAT_REQUEST instead */
+export const MSG_HEARTBEAT_LOCAL_REQUEST = MSG_PROVIDER_HEARTBEAT_REQUEST;
+/** @deprecated Use MSG_PROVIDER_HEARTBEAT_RESPONSE instead */
+export const MSG_HEARTBEAT_LOCAL_RESPONSE = MSG_PROVIDER_HEARTBEAT_RESPONSE;
+/** @deprecated Use MSG_START_TASK_REQUEST instead */
+export const MSG_START_JOB_REQUEST = MSG_START_TASK_REQUEST;
+/** @deprecated Use MSG_START_TASK_RESPONSE instead */
+export const MSG_START_JOB_RESPONSE = MSG_START_TASK_RESPONSE;
+/** @deprecated Use MSG_STREAM_TASK_REQUEST instead */
+export const MSG_STREAM_JOB_REQUEST = MSG_STREAM_TASK_REQUEST;
+/** @deprecated Use MSG_TASK_EVENT instead */
+export const MSG_JOB_EVENT = MSG_TASK_EVENT;
+/** @deprecated Use MSG_CANCEL_TASK_REQUEST instead */
+export const MSG_CANCEL_JOB_REQUEST = MSG_CANCEL_TASK_REQUEST;
+/** @deprecated Use MSG_CANCEL_TASK_RESPONSE instead */
+export const MSG_CANCEL_JOB_RESPONSE = MSG_CANCEL_TASK_RESPONSE;
 
 /**
  * Encode a 24-bit MsgID into 3 bytes (big-endian).
@@ -154,18 +176,18 @@ export function msgIdString(msgId: number): string {
     [MSG_HEARTBEAT_RESPONSE]: "HeartbeatResponse",
     [MSG_INVOKE_REQUEST]: "InvokeRequest",
     [MSG_INVOKE_RESPONSE]: "InvokeResponse",
-    [MSG_START_JOB_REQUEST]: "StartJobRequest",
-    [MSG_START_JOB_RESPONSE]: "StartJobResponse",
-    [MSG_STREAM_JOB_REQUEST]: "StreamJobRequest",
-    [MSG_JOB_EVENT]: "JobEvent",
-    [MSG_CANCEL_JOB_REQUEST]: "CancelJobRequest",
-    [MSG_CANCEL_JOB_RESPONSE]: "CancelJobResponse",
-    [MSG_REGISTER_LOCAL_REQUEST]: "RegisterLocalRequest",
-    [MSG_REGISTER_LOCAL_RESPONSE]: "RegisterLocalResponse",
-    [MSG_HEARTBEAT_LOCAL_REQUEST]: "HeartbeatLocalRequest",
-    [MSG_HEARTBEAT_LOCAL_RESPONSE]: "HeartbeatLocalResponse",
-    [MSG_LIST_LOCAL_REQUEST]: "ListLocalRequest",
-    [MSG_LIST_LOCAL_RESPONSE]: "ListLocalResponse",
+    [MSG_START_TASK_REQUEST]: "StartTaskRequest",
+    [MSG_START_TASK_RESPONSE]: "StartTaskResponse",
+    [MSG_STREAM_TASK_REQUEST]: "StreamTaskRequest",
+    [MSG_TASK_EVENT]: "TaskEvent",
+    [MSG_CANCEL_TASK_REQUEST]: "CancelTaskRequest",
+    [MSG_CANCEL_TASK_RESPONSE]: "CancelTaskResponse",
+    [MSG_PROVIDER_CONNECT_REQUEST]: "ProviderConnectRequest",
+    [MSG_PROVIDER_CONNECT_RESPONSE]: "ProviderConnectResponse",
+    [MSG_PROVIDER_HEARTBEAT_REQUEST]: "ProviderHeartbeatRequest",
+    [MSG_PROVIDER_HEARTBEAT_RESPONSE]: "ProviderHeartbeatResponse",
+    [MSG_PROVIDER_DRAIN_REQUEST]: "ProviderDrainRequest",
+    [MSG_PROVIDER_DRAIN_RESPONSE]: "ProviderDrainResponse",
   };
   return names[msgId] || `Unknown(0x${msgId.toString(16).padStart(6, "0")})`;
 }

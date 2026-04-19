@@ -1,13 +1,11 @@
 /**
- * NNG Transport Layer for Croupier JavaScript SDK.
+ * TCP Transport Layer for Croupier JavaScript SDK.
  *
- * Implements the NNG (nanomsg-next-gen) based transport for communication
- * with Croupier Agent using REQ/REP pattern.
- *
- * Uses the '@rustup/nng' npm package for NNG bindings.
+ * Implements TCP-based transport for communication
+ * with Croupier Agent using request/response pattern.
  */
 
-import { Socket, SocketOptions } from "@rustup/nng";
+import * as net from "net";
 import {
   HEADER_SIZE,
   ParsedMessage,
@@ -17,38 +15,62 @@ import {
 } from "./protocol";
 
 /**
- * NNG-based transport client using REQ/REP pattern.
+ * TCP-based transport client.
  */
-export class NNGTransport {
+export class TCPTransport {
   private address: string;
   private timeoutMs: number;
-  private socket: Socket | null = null;
+  private client: net.Socket | null = null;
   private connected: boolean = false;
   private requestId: number = 0;
 
-  constructor(
-    address: string = "tcp://127.0.0.1:19090",
-    timeoutMs: number = 30000,
-  ) {
+  constructor(address: string = "127.0.0.1:19090", timeoutMs: number = 30000) {
     this.address = address;
     this.timeoutMs = timeoutMs;
   }
 
   /**
-   * Connect to the NNG server (Agent).
+   * Connect to the TCP server (Agent).
    */
   connect(): void {
     if (this.connected) {
       return;
     }
 
-    const options: SocketOptions = {
-      recvTimeout: this.timeoutMs,
-      sendTimeout: this.timeoutMs,
-    };
+    this.client = new net.Socket();
+    this.client.setTimeout(this.timeoutMs);
 
-    this.socket = new Socket(options);
-    this.socket.connect(this.address);
+    // Sync connection for compatibility
+    const [host, portStr] = this.address.split(":");
+    const port = parseInt(portStr, 10);
+
+    let connected = false;
+    let error: Error | null = null;
+
+    this.client.on("connect", () => {
+      connected = true;
+    });
+
+    this.client.on("error", (err) => {
+      error = err;
+    });
+
+    this.client.connect(port, host);
+
+    // Small wait for connection
+    const start = Date.now();
+    while (!connected && !error && Date.now() - start < this.timeoutMs) {
+      // Busy wait for sync behavior
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    if (!connected) {
+      throw new Error("Connection timeout");
+    }
+
     this.connected = true;
   }
 
@@ -60,9 +82,9 @@ export class NNGTransport {
       return;
     }
 
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+    if (this.client) {
+      this.client.destroy();
+      this.client = null;
     }
 
     this.connected = false;
@@ -72,7 +94,7 @@ export class NNGTransport {
    * Check if connected.
    */
   isConnected(): boolean {
-    return this.connected && (this.socket?.connected() ?? false);
+    return this.connected && (this.client?.readyState === "open" || false);
   }
 
   /**
@@ -83,7 +105,7 @@ export class NNGTransport {
    * @returns Pair of [responseMsgType, responseData]
    */
   call(msgType: number, data: Buffer): [number, Buffer] {
-    if (!this.connected || !this.socket) {
+    if (!this.connected || !this.client) {
       throw new Error("Not connected");
     }
 
@@ -93,8 +115,16 @@ export class NNGTransport {
     // Build message with protocol header
     const message = newMessage(msgType, this.requestId, data);
 
-    // Send request and receive response (NNG REQ/REP is synchronous)
-    const response = this.socket.send(message);
+    // Prepend 4-byte length prefix
+    const lengthPrefix = Buffer.alloc(4);
+    lengthPrefix.writeUInt32BE(message.length, 0);
+    const fullMessage = Buffer.concat([lengthPrefix, message]);
+
+    // Send request
+    this.client.write(fullMessage);
+
+    // Receive response
+    const response = this.receive();
 
     // Parse response
     const parsed: ParsedMessage = parseMessage(response);
@@ -110,24 +140,65 @@ export class NNGTransport {
 
     return [parsed.msgId, parsed.body];
   }
+
+  /**
+   * Receive a message with length prefix.
+   */
+  private receive(): Buffer {
+    if (!this.client) {
+      throw new Error("Not connected");
+    }
+
+    // Read 4-byte length prefix
+    const lengthPrefix = this.readExactly(4);
+    const length = lengthPrefix.readUInt32BE(0);
+
+    // Read message body
+    return this.readExactly(length);
+  }
+
+  /**
+   * Read exactly n bytes from the socket.
+   */
+  private readExactly(n: number): Buffer {
+    if (!this.client) {
+      throw new Error("Not connected");
+    }
+
+    const chunks: Buffer[] = [];
+    let remaining = n;
+
+    while (remaining > 0) {
+      const chunk = this.client.read();
+      if (chunk) {
+        chunks.push(chunk);
+        remaining -= chunk.length;
+      } else {
+        // Wait for data
+        const start = Date.now();
+        while (!this.client.readableLength && Date.now() - start < 100) {
+          // Busy wait
+        }
+      }
+    }
+
+    return Buffer.concat(chunks);
+  }
 }
 
 /**
- * NNG-based server using REP/REQ pattern.
+ * TCP-based server.
  */
-export class NNGServer {
+export class TCPServer {
   private address: string;
   private timeoutMs: number;
-  private disposable: ReturnType<typeof Socket.recvMessage> | null = null;
+  private server: net.Server | null = null;
   private running: boolean = false;
   private handler:
     | ((msgType: number, reqId: number, body: Buffer) => Buffer)
     | null = null;
 
-  constructor(
-    address: string = "tcp://127.0.0.1:19090",
-    timeoutMs: number = 30000,
-  ) {
+  constructor(address: string = "127.0.0.1:19090", timeoutMs: number = 30000) {
     this.address = address;
     this.timeoutMs = timeoutMs;
   }
@@ -149,38 +220,62 @@ export class NNGServer {
       return;
     }
 
-    const options: SocketOptions = {
-      recvTimeout: this.timeoutMs,
-      sendTimeout: this.timeoutMs,
-    };
+    const [host, portStr] = this.address.split(":");
+    const port = parseInt(portStr, 10);
 
-    this.disposable = Socket.recvMessage(
-      this.address,
-      options,
-      (data: Buffer): Buffer => {
-        // Parse incoming message
-        const parsed = parseMessage(data);
+    this.server = net.createServer((socket) => {
+      socket.setTimeout(this.timeoutMs);
 
-        // Handle request
-        let responseBody: Buffer = Buffer.alloc(0);
-        if (this.handler) {
-          try {
-            responseBody = this.handler(
-              parsed.msgId,
-              parsed.reqId,
-              parsed.body,
-            );
-          } catch (e) {
-            console.error("Handler error:", e);
+      socket.on("data", (data: Buffer) => {
+        try {
+          // Read length prefix (4 bytes)
+          if (data.length < 4) {
+            return;
           }
+
+          const length = data.readUInt32BE(0);
+          if (data.length < 4 + length) {
+            return;
+          }
+
+          const message = data.subarray(4, 4 + length);
+          const parsed = parseMessage(message);
+
+          // Handle request
+          let responseBody: Buffer = Buffer.alloc(0);
+          if (this.handler) {
+            try {
+              responseBody = this.handler(
+                parsed.msgId,
+                parsed.reqId,
+                parsed.body,
+              );
+            } catch (e) {
+              console.error("Handler error:", e);
+            }
+          }
+
+          // Build and return response
+          const respMsgType = getResponseMsgId(parsed.msgId);
+          const response = newMessage(respMsgType, parsed.reqId, responseBody);
+
+          // Prepend length prefix
+          const lengthPrefix = Buffer.alloc(4);
+          lengthPrefix.writeUInt32BE(response.length, 0);
+          const fullResponse = Buffer.concat([lengthPrefix, response]);
+
+          socket.write(fullResponse);
+        } catch (e) {
+          console.error("Server error:", e);
         }
+      });
 
-        // Build and return response
-        const respMsgType = getResponseMsgId(parsed.msgId);
-        return newMessage(respMsgType, parsed.reqId, responseBody);
-      },
-    );
+      socket.on("error", (err) => {
+        console.error("Socket error:", err);
+      });
+    });
 
+    this.server.listen(port, host);
     this.running = true;
   }
 
@@ -194,9 +289,9 @@ export class NNGServer {
 
     this.running = false;
 
-    if (this.disposable) {
-      this.disposable.dispose();
-      this.disposable = null;
+    if (this.server) {
+      this.server.close();
+      this.server = null;
     }
   }
 

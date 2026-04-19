@@ -2,7 +2,7 @@
  * Croupier JavaScript SDK
  *
  * Provides function registration and invocation for the Croupier platform.
- * Uses NNG (nanomsg-next-gen) for transport layer.
+ * Uses TCP session transport for bidirectional multiplexed communication.
  */
 
 import { createHash, randomUUID } from "node:crypto";
@@ -12,15 +12,17 @@ import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { TextDecoder, TextEncoder } from "node:util";
 import * as protobuf from "protobufjs";
-import { NNGTransport } from "./transport";
+import { TCPTransport } from "./tcp_transport";
 import {
-  MSG_HEARTBEAT_LOCAL_REQUEST,
+  MSG_PROVIDER_HEARTBEAT_REQUEST,
   MSG_INVOKE_REQUEST,
   MSG_INVOKE_RESPONSE,
   MSG_REGISTER_CAPABILITIES_REQ,
-  MSG_REGISTER_LOCAL_REQUEST,
-  MSG_START_JOB_REQUEST,
-  MSG_START_JOB_RESPONSE,
+  MSG_PROVIDER_CONNECT_REQUEST,
+  MSG_START_TASK_REQUEST,
+  MSG_START_TASK_RESPONSE,
+  MSG_TASK_EVENT,
+  MSG_CANCEL_TASK_REQUEST,
 } from "./protocol";
 
 const encoder = new TextEncoder();
@@ -468,12 +470,8 @@ export interface CroupierClient {
   streamJob(jobId: string): AsyncIterable<JobEvent>;
   cancelJob(jobId: string): boolean;
   uploadFile(request: FileUploadRequest): Promise<FileUploadResult>;
-  uploadFileStream(
-    request: FileUploadStreamRequest,
-  ): Promise<FileUploadResult>;
-  uploadFiles(
-    requests: FileUploadRequest[],
-  ): Promise<FileUploadBatchResult>;
+  uploadFileStream(request: FileUploadStreamRequest): Promise<FileUploadResult>;
+  uploadFiles(requests: FileUploadRequest[]): Promise<FileUploadBatchResult>;
   serve(): Promise<void>;
   serveAsync(): Promise<void>;
 }
@@ -483,7 +481,7 @@ export class BasicClient implements CroupierClient {
   private handlers: Map<string, FunctionHandler> = new Map();
   private descriptors: Map<string, FunctionDescriptor> = new Map();
   private jobStates: Map<string, JobState> = new Map();
-  private transport: NNGTransport | null = null;
+  private transport: TCPTransport | null = null;
   private connected = false;
   private sessionId = "";
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -674,11 +672,10 @@ export class BasicClient implements CroupierClient {
     };
   }
 
-  getRegisterRequest(rpcAddr = "") {
+  getRegisterRequest() {
     return {
       serviceId: this.config.serviceId,
       version: this.config.serviceVersion,
-      rpcAddr,
       functions: Array.from(this.descriptors.values()).map((desc) => ({
         id: desc.id,
         version: desc.version,
@@ -739,7 +736,7 @@ export class BasicClient implements CroupierClient {
           retry_config: retryConfig,
         }),
       );
-      const [, responseData] = this.transport.call(
+      const [, responseData] = await this.transport.call(
         MSG_INVOKE_REQUEST,
         requestData,
       );
@@ -961,7 +958,9 @@ export class BasicClient implements CroupierClient {
 
     const results = items
       .filter(
-        (item): item is FileUploadBatchItemResult & { result: FileUploadResult } =>
+        (
+          item,
+        ): item is FileUploadBatchItemResult & { result: FileUploadResult } =>
           item.ok === true && item.result !== undefined,
       )
       .map((item) => item.result);
@@ -1140,7 +1139,9 @@ export class BasicClient implements CroupierClient {
       this.config.allowedExtensions.length > 0 &&
       !this.config.allowedExtensions.includes(extension)
     ) {
-      throw new Error(`File extension ${extension || "<none>"} is not allowed.`);
+      throw new Error(
+        `File extension ${extension || "<none>"} is not allowed.`,
+      );
     }
     if (
       this.config.allowedMimeTypes.length > 0 &&
@@ -1186,22 +1187,26 @@ export class BasicClient implements CroupierClient {
   }
 
   private async connectAndRegister(): Promise<void> {
-    const transport = new NNGTransport(
-      this.config.agentAddr,
-      this.config.timeout,
-    );
-    transport.connect();
+    const transport = new TCPTransport({
+      address: this.config.agentAddr,
+      timeoutMs: this.config.timeout,
+      tlsEnabled: !this.config.insecure,
+      tlsCertFile: this.config.certFile,
+      tlsKeyFile: this.config.keyFile,
+      tlsCaFile: this.config.caFile,
+      tlsServerName: this.config.serverName,
+      tlsInsecureSkipVerify: this.config.insecure,
+    });
+    await transport.connect();
 
     try {
-      const [, responseData] = transport.call(
-        MSG_REGISTER_LOCAL_REQUEST,
-        this.serializeRegisterLocalRequest(
-          this.getRegisterRequest(this.resolveRpcAddr()),
-        ),
+      const [, responseData] = await transport.call(
+        MSG_PROVIDER_CONNECT_REQUEST,
+        this.serializeProviderConnectRequest(this.getRegisterRequest()),
       );
-      const response = this.parseRegisterLocalResponse(responseData);
+      const response = this.parseProviderConnectResponse(responseData);
       if (!response.sessionId) {
-        throw new Error("RegisterLocal returned empty session_id");
+        throw new Error("ProviderConnect returned empty session_id");
       }
 
       if (this.transport) {
@@ -1221,14 +1226,20 @@ export class BasicClient implements CroupierClient {
       return;
     }
 
-    const controlTransport = new NNGTransport(
-      this.config.controlAddr,
-      this.config.timeout,
-    );
-    controlTransport.connect();
+    const controlTransport = new TCPTransport({
+      address: this.config.controlAddr,
+      timeoutMs: this.config.timeout,
+      tlsEnabled: !this.config.insecure,
+      tlsCertFile: this.config.certFile,
+      tlsKeyFile: this.config.keyFile,
+      tlsCaFile: this.config.caFile,
+      tlsServerName: this.config.serverName,
+      tlsInsecureSkipVerify: this.config.insecure,
+    });
+    await controlTransport.connect();
 
     try {
-      const [, responseData] = controlTransport.call(
+      const [, responseData] = await controlTransport.call(
         MSG_REGISTER_CAPABILITIES_REQ,
         this.serializeRegisterCapabilitiesRequest(),
       );
@@ -1265,8 +1276,8 @@ export class BasicClient implements CroupierClient {
       throw new Error("Client is not registered");
     }
 
-    this.transport.call(
-      MSG_HEARTBEAT_LOCAL_REQUEST,
+    await this.transport.call(
+      MSG_PROVIDER_HEARTBEAT_REQUEST,
       this.serializeHeartbeatRequest({
         serviceId: this.config.serviceId,
         sessionId: this.sessionId,
@@ -1342,17 +1353,13 @@ export class BasicClient implements CroupierClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private resolveRpcAddr(): string {
-    return this.config.localListen || "";
-  }
-
   private serializeRegisterLocalRequest(
     request: ReturnType<BasicClient["getRegisterRequest"]>,
   ): Buffer {
     const payload = RegisterLocalRequestMessage.create({
       serviceId: request.serviceId,
       version: request.version,
-      rpcAddr: request.rpcAddr,
+      rpcAddr: "",
       functions: request.functions.map((fn) => ({
         id: fn.id,
         version: fn.version,
@@ -1379,6 +1386,54 @@ export class BasicClient implements CroupierClient {
     return {
       sessionId: object.sessionId || "",
     };
+  }
+
+  private serializeProviderConnectRequest(
+    request: ReturnType<BasicClient["getRegisterRequest"]>,
+  ): Buffer {
+    // Use JSON encoding for ProviderConnect (simpler for now)
+    return Buffer.from(
+      JSON.stringify({
+        service_id: request.serviceId,
+        version: request.version,
+        functions: request.functions.map((fn) => ({
+          id: fn.id,
+          version: fn.version,
+          summary: fn.summary,
+          description: fn.description,
+          input_schema: fn.input_schema,
+          output_schema: fn.output_schema,
+          category: fn.category,
+          risk: fn.risk,
+          entity: fn.entity,
+          operation: fn.operation,
+        })),
+        sdk_language: this.config.providerLang,
+        sdk_version: this.config.providerSdk,
+        protocol_version: "1.0.0",
+        supported_capabilities: [],
+        transport_security_mode: this.config.insecure ? "plaintext" : "tls",
+        supported_transports: ["tcp"],
+      }),
+    );
+  }
+
+  private parseProviderConnectResponse(data: Buffer): { sessionId: string } {
+    try {
+      const obj = JSON.parse(decoder.decode(data));
+      return {
+        sessionId: obj.session_id || "",
+      };
+    } catch {
+      // Fallback to protobuf
+      const decoded = RegisterLocalResponseMessage.decode(data);
+      const object = RegisterLocalResponseMessage.toObject(decoded, {
+        defaults: true,
+      }) as { sessionId?: string };
+      return {
+        sessionId: object.sessionId || "",
+      };
+    }
   }
 
   private serializeHeartbeatRequest(request: {
@@ -1445,6 +1500,6 @@ export function createClient(config?: ClientConfig): CroupierClient {
 
 // Export protocol and transport
 export * from "./protocol";
-export * from "./transport";
+export { TCPTransport } from "./tcp_transport";
 
 export { BasicClient as default };

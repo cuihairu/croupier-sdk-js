@@ -1,19 +1,13 @@
 {
   "name": "croupier-js-sdk",
   "version": "0.1.0",
-  "description": "Croupier Node.js SDK for Game Function Registration with NNG Transport",
+  "description": "Croupier Node.js SDK for Game Function Registration with TCP Transport",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "keywords": [
     "croupier",
-    "game",
-    "sdk",
-    "nng",
-    "nanomsg",
-    "nodejs",
-    "typescript",
-    "gaming",
-    "backend"
+    "tcp",
+    "transport"
   ],
   "author": "Croupier Team <dev@croupier.io>",
   "license": "MIT",
@@ -47,7 +41,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@rustup/nng": "^0.1.2",
+    "@rustup/tcp": "^0.1.2",
     "protobufjs": "^7.5.5"
   },
   "devDependencies": {

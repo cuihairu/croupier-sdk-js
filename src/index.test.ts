@@ -2,18 +2,21 @@ import * as protobuf from "protobufjs";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { Readable } from "node:stream";
+import { TextDecoder } from "node:util";
 import {
   BasicClient,
   createClient,
   FunctionDescriptor,
   InvokeOptions,
 } from "./index";
-import { NNGTransport } from "./transport";
+import { TCPTransport } from "./tcp_transport";
 import {
-  MSG_HEARTBEAT_LOCAL_REQUEST,
+  MSG_PROVIDER_HEARTBEAT_REQUEST,
   MSG_REGISTER_CAPABILITIES_REQ,
-  MSG_REGISTER_LOCAL_REQUEST,
+  MSG_PROVIDER_CONNECT_REQUEST,
 } from "./protocol";
+
+const decoder = new TextDecoder();
 
 const providerRoot = protobuf.parse(`
 syntax = "proto3";
@@ -608,12 +611,12 @@ describe("BasicClient", () => {
   test("connect sends RegisterLocalRequest and stores session id", async () => {
     const registerCalls: Buffer[] = [];
     const connectSpy = jest
-      .spyOn(NNGTransport.prototype, "connect")
-      .mockImplementation(() => {});
+      .spyOn(TCPTransport.prototype, "connect")
+      .mockImplementation(async () => {});
     const callSpy = jest
-      .spyOn(NNGTransport.prototype, "call")
-      .mockImplementation((msgType, data) => {
-        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+      .spyOn(TCPTransport.prototype, "call")
+      .mockImplementation(async (msgType, data) => {
+        if (msgType === MSG_PROVIDER_CONNECT_REQUEST) {
           registerCalls.push(Buffer.from(data));
           const response = RegisterLocalResponseMessage.create({
             sessionId: "session-1",
@@ -623,13 +626,13 @@ describe("BasicClient", () => {
             Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
           ];
         }
-        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+        if (msgType === MSG_PROVIDER_HEARTBEAT_REQUEST) {
           return [msgType + 1, Buffer.alloc(0)];
         }
         throw new Error(`Unexpected msgType ${msgType}`);
       });
     const closeSpy = jest
-      .spyOn(NNGTransport.prototype, "close")
+      .spyOn(TCPTransport.prototype, "close")
       .mockImplementation(() => {});
 
     const client = new BasicClient({
@@ -644,15 +647,10 @@ describe("BasicClient", () => {
 
     await client.connect();
 
-    const decoded = RegisterLocalRequestMessage.decode(registerCalls[0]);
-    const request = RegisterLocalRequestMessage.toObject(decoded, {
-      defaults: true,
-    }) as {
-      serviceId: string;
-      rpcAddr: string;
-    };
-    expect(request.serviceId).toBe("test-service");
-    expect(request.rpcAddr).toBe("127.0.0.1:19091");
+    const request = JSON.parse(decoder.decode(registerCalls[0]));
+    expect(request.service_id).toBe("test-service");
+    expect(request.sdk_language).toBe("node");
+    expect(request.transport_security_mode).toBe("plaintext");
     expect((client as any).sessionId).toBe("session-1");
 
     await client.disconnect();
@@ -664,12 +662,12 @@ describe("BasicClient", () => {
   test("connect uploads capabilities when controlAddr is configured", async () => {
     const capabilityCalls: Buffer[] = [];
     const connectSpy = jest
-      .spyOn(NNGTransport.prototype, "connect")
-      .mockImplementation(() => {});
+      .spyOn(TCPTransport.prototype, "connect")
+      .mockImplementation(async () => {});
     const callSpy = jest
-      .spyOn(NNGTransport.prototype, "call")
-      .mockImplementation((msgType, data) => {
-        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+      .spyOn(TCPTransport.prototype, "call")
+      .mockImplementation(async (msgType, data) => {
+        if (msgType === MSG_PROVIDER_CONNECT_REQUEST) {
           const response = RegisterLocalResponseMessage.create({
             sessionId: "session-1",
           });
@@ -682,13 +680,13 @@ describe("BasicClient", () => {
           capabilityCalls.push(Buffer.from(data));
           return [msgType + 1, Buffer.alloc(0)];
         }
-        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+        if (msgType === MSG_PROVIDER_HEARTBEAT_REQUEST) {
           return [msgType + 1, Buffer.alloc(0)];
         }
         throw new Error(`Unexpected msgType ${msgType}`);
       });
     const closeSpy = jest
-      .spyOn(NNGTransport.prototype, "close")
+      .spyOn(TCPTransport.prototype, "close")
       .mockImplementation(() => {});
 
     const client = new BasicClient({
@@ -706,7 +704,9 @@ describe("BasicClient", () => {
     await client.connect();
 
     expect(capabilityCalls).toHaveLength(1);
-    const decoded = RegisterCapabilitiesRequestMessage.decode(capabilityCalls[0]);
+    const decoded = RegisterCapabilitiesRequestMessage.decode(
+      capabilityCalls[0],
+    );
     const request = RegisterCapabilitiesRequestMessage.toObject(decoded, {
       defaults: true,
     }) as {
@@ -730,12 +730,12 @@ describe("BasicClient", () => {
   test("connect ignores capability upload failures", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     const connectSpy = jest
-      .spyOn(NNGTransport.prototype, "connect")
-      .mockImplementation(() => {});
+      .spyOn(TCPTransport.prototype, "connect")
+      .mockImplementation(async () => {});
     const callSpy = jest
-      .spyOn(NNGTransport.prototype, "call")
-      .mockImplementation((msgType) => {
-        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+      .spyOn(TCPTransport.prototype, "call")
+      .mockImplementation(async (msgType) => {
+        if (msgType === MSG_PROVIDER_CONNECT_REQUEST) {
           const response = RegisterLocalResponseMessage.create({
             sessionId: "session-1",
           });
@@ -747,13 +747,13 @@ describe("BasicClient", () => {
         if (msgType === MSG_REGISTER_CAPABILITIES_REQ) {
           throw new Error("capabilities failed");
         }
-        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+        if (msgType === MSG_PROVIDER_HEARTBEAT_REQUEST) {
           return [msgType + 1, Buffer.alloc(0)];
         }
         throw new Error(`Unexpected msgType ${msgType}`);
       });
     const closeSpy = jest
-      .spyOn(NNGTransport.prototype, "close")
+      .spyOn(TCPTransport.prototype, "close")
       .mockImplementation(() => {});
 
     const client = new BasicClient({
@@ -782,12 +782,12 @@ describe("BasicClient", () => {
     let registerCount = 0;
     let heartbeatCount = 0;
     const connectSpy = jest
-      .spyOn(NNGTransport.prototype, "connect")
-      .mockImplementation(() => {});
+      .spyOn(TCPTransport.prototype, "connect")
+      .mockImplementation(async () => {});
     const callSpy = jest
-      .spyOn(NNGTransport.prototype, "call")
-      .mockImplementation((msgType, data) => {
-        if (msgType === MSG_REGISTER_LOCAL_REQUEST) {
+      .spyOn(TCPTransport.prototype, "call")
+      .mockImplementation(async (msgType, data) => {
+        if (msgType === MSG_PROVIDER_CONNECT_REQUEST) {
           registerCount += 1;
           const response = RegisterLocalResponseMessage.create({
             sessionId: `session-${registerCount}`,
@@ -797,7 +797,7 @@ describe("BasicClient", () => {
             Buffer.from(RegisterLocalResponseMessage.encode(response).finish()),
           ];
         }
-        if (msgType === MSG_HEARTBEAT_LOCAL_REQUEST) {
+        if (msgType === MSG_PROVIDER_HEARTBEAT_REQUEST) {
           heartbeatCount += 1;
           if (heartbeatCount === 1) {
             throw new Error("heartbeat failed");
@@ -814,7 +814,7 @@ describe("BasicClient", () => {
         throw new Error(`Unexpected msgType ${msgType}`);
       });
     const closeSpy = jest
-      .spyOn(NNGTransport.prototype, "close")
+      .spyOn(TCPTransport.prototype, "close")
       .mockImplementation(() => {});
 
     const client = new BasicClient({
@@ -949,11 +949,10 @@ describe("BasicClient", () => {
     });
     client.registerFunction({ id: "f1", version: "1.0.0" }, async () => "ok");
 
-    const req = client.getRegisterRequest("127.0.0.1:8080");
+    const req = client.getRegisterRequest();
 
     expect(req.serviceId).toBe("test-svc");
     expect(req.version).toBe("1.0.0");
-    expect(req.rpcAddr).toBe("127.0.0.1:8080");
     expect(req.functions).toHaveLength(1);
     expect(req.functions[0].id).toBe("f1");
   });
@@ -1041,7 +1040,7 @@ describe("BasicClient", () => {
     expect(result).toBe("42");
   });
 
-  test("getRegisterRequest with no rpc addr", () => {
+  test("getRegisterRequest returns function list", () => {
     const client = new BasicClient({
       serviceId: "test-svc",
       serviceVersion: "1.0.0",
@@ -1050,8 +1049,8 @@ describe("BasicClient", () => {
 
     const req = client.getRegisterRequest();
 
-    expect(req.rpcAddr).toBe("");
     expect(req.functions).toHaveLength(1);
+    expect(req.functions[0].id).toBe("f1");
   });
 
   test("startJob with multiple rapid cancels", async () => {
