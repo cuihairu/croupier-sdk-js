@@ -43,7 +43,7 @@ next-env.d.ts
 *.pb.cc
 *.pb.java
 *.pb.swift
-# Note: src/gen/ is NOT ignored - it contains TypeScript proto stubs synced by croupier-proto
+# Note: src/gen/ is NOT ignored - it contains TypeScript proto stubs
 
 # Build outputs
 dist/

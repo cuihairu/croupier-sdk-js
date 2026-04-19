@@ -57,10 +57,9 @@ Croupier Node.js SDK 是 [Croupier](https://github.com/cuihairu/croupier) 游戏
 
 ## 主项目
 
-| 项目               | 描述                      | 链接                                                                  |
-| ------------------ | ------------------------- | --------------------------------------------------------------------- |
-| **Croupier**       | 游戏后端平台主项目        | [cuihairu/croupier](https://github.com/cuihairu/croupier)             |
-| **Croupier Proto** | 协议定义（Protobuf/gRPC） | [cuihairu/croupier-proto](https://github.com/cuihairu/croupier-proto) |
+| 项目         | 描述                 | 链接                                                              |
+| ------------ | -------------------- | ----------------------------------------------------------------- |
+| **Croupier** | 游戏后端平台主项目    | [cuihairu/croupier](https://github.com/cuihairu/croupier)       |
 
 ## 其他语言 SDK
 
