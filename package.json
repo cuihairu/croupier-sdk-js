@@ -41,7 +41,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@rustup/tcp": "^0.1.2",
     "protobufjs": "^7.5.5"
   },
   "devDependencies": {
